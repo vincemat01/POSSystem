@@ -60,3 +60,122 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
   revalidatePath("/products");
   redirect("/products");
 }
+
+const adjustStockSchema = z.object({
+  product_id: z.string().uuid(),
+  quantity: z.coerce.number().refine((n) => n !== 0, "Enter a non-zero quantity."),
+  expiry_date: z.string().trim().optional(),
+  reason: z.string().trim().optional(),
+});
+
+export interface AdjustStockState {
+  error?: string;
+  success?: boolean;
+}
+
+/** Quick stock adjustment for testing/small corrections — not a substitute for a proper
+ * Purchases/receiving flow (not built yet), which would also record supplier and per-unit cost
+ * for a purchase. Cost for non-expiry products already comes from products.cost_price at sale
+ * time, so a plain movement is sufficient there; expiry-tracked products need a real batch since
+ * FEFO deducts from inventory_batches, not from the movement ledger directly. */
+export async function adjustStock(_prevState: AdjustStockState, formData: FormData): Promise<AdjustStockState> {
+  const parsed = adjustStockSchema.safeParse({
+    product_id: formData.get("product_id"),
+    quantity: formData.get("quantity"),
+    expiry_date: formData.get("expiry_date") || undefined,
+    reason: formData.get("reason") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Please check the form and try again." };
+  }
+
+  const context = await getBusinessContext();
+  if (!context) redirect("/onboarding");
+
+  const supabase = await createClient();
+  const { data: product } = await supabase
+    .from("products")
+    .select("id, tracks_expiry, cost_price")
+    .eq("business_id", context.business.id)
+    .eq("id", parsed.data.product_id)
+    .maybeSingle();
+
+  if (!product) {
+    return { error: "That product couldn't be found." };
+  }
+
+  const { quantity } = parsed.data;
+
+  if (product.tracks_expiry) {
+    if (quantity < 0) {
+      return { error: "Reducing stock on an expiry-tracked product isn't supported here yet — that needs Stock Take." };
+    }
+
+    const { data: batch, error: batchError } = await supabase
+      .from("inventory_batches")
+      .insert({
+        business_id: context.business.id,
+        product_id: product.id,
+        location_id: context.locationId,
+        quantity_received: quantity,
+        quantity_remaining: quantity,
+        unit_cost: product.cost_price,
+        expiry_date: parsed.data.expiry_date || null,
+      })
+      .select("id")
+      .single();
+
+    if (batchError || !batch) {
+      return { error: "We couldn't save that stock adjustment. Please try again." };
+    }
+
+    const { error: movementError } = await supabase.from("inventory_movements").insert({
+      business_id: context.business.id,
+      product_id: product.id,
+      location_id: context.locationId,
+      batch_id: batch.id,
+      movement_type: "adjustment",
+      quantity,
+      reference_type: "manual_adjustment",
+      notes: parsed.data.reason || null,
+    });
+
+    if (movementError) {
+      return { error: "We couldn't save that stock adjustment. Please try again." };
+    }
+  } else {
+    if (quantity < 0) {
+      const { data: stockRow } = await supabase
+        .from("product_stock")
+        .select("quantity_on_hand")
+        .eq("business_id", context.business.id)
+        .eq("product_id", product.id)
+        .eq("location_id", context.locationId)
+        .maybeSingle();
+
+      const available = Number(stockRow?.quantity_on_hand ?? 0);
+      if (available + quantity < 0) {
+        return { error: `Only ${available} in stock — can't reduce by ${Math.abs(quantity)}.` };
+      }
+    }
+
+    const { error: movementError } = await supabase.from("inventory_movements").insert({
+      business_id: context.business.id,
+      product_id: product.id,
+      location_id: context.locationId,
+      movement_type: "adjustment",
+      quantity,
+      reference_type: "manual_adjustment",
+      notes: parsed.data.reason || null,
+    });
+
+    if (movementError) {
+      return { error: "We couldn't save that stock adjustment. Please try again." };
+    }
+  }
+
+  revalidatePath(`/products/${parsed.data.product_id}`);
+  revalidatePath("/products");
+  return { success: true };
+}

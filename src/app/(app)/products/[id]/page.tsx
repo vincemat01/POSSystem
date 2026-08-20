@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
 import { formatMoney, formatDate, daysUntil } from "@/lib/utils";
+import { AdjustStockForm } from "@/components/products/adjust-stock-form";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -80,6 +81,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           )}
         </Card>
       </div>
+
+      <AdjustStockForm productId={product.id} tracksExpiry={product.tracks_expiry} />
 
       {product.tracks_expiry && (
         <Card>
