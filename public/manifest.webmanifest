@@ -1,0 +1,14 @@
+{
+  "name": "Kompass POS",
+  "short_name": "Kompass POS",
+  "description": "Smart POS & business management for South African small businesses.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8f6",
+  "theme_color": "#0b5d3b",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
