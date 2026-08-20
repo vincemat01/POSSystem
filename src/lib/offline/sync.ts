@@ -20,7 +20,11 @@ export function onSyncStateChange(listener: SyncListener) {
 }
 
 async function notify(lastError: string | null = null) {
-  const pending = await db.outbox.where("status").anyOf("pending", "failed").count();
+  // Only "pending"/"syncing" count as work still in flight. "failed" is a terminal, permanent
+  // rejection (see syncPending) and is deleted immediately after its error is reported, so it
+  // never lingers here — otherwise the badge would show "N waiting to sync" forever for a sale
+  // that will never succeed no matter how many times it's retried.
+  const pending = await db.outbox.where("status").anyOf("pending", "syncing").count();
   for (const listener of listeners) listener({ pending, syncing, lastError });
 }
 
@@ -51,35 +55,29 @@ export async function enqueue(
     return { ok: true };
   }
 
-  await syncPending();
-  const stored = await db.outbox.get(item.client_transaction_id);
-  // "pending" here means the attempt hit a transient error (e.g. a dropped connection) and will
-  // retry automatically — that's still a success from the cashier's point of view, matching the
-  // offline-first promise that a queued sale is safe. Only "failed" (a permanent rejection from
-  // the server, like insufficient stock) needs their attention right now.
-  if (!stored || stored.status === "synced" || stored.status === "pending") {
-    return { ok: true };
-  }
-
-  // A permanent rejection (e.g. insufficient stock) will never succeed on retry — surface it now
-  // and drop it, rather than leaving it to retry forever and permanently show "waiting to sync."
-  const error = stored.last_error ?? "We couldn't complete that. Please try again.";
-  await db.outbox.delete(item.client_transaction_id);
-  await notify();
-  return { ok: false, error };
+  const { permanentFailures } = await syncPending();
+  const failure = permanentFailures.get(item.client_transaction_id);
+  return failure ? { ok: false, error: failure } : { ok: true };
 }
 
 /** Drain the outbox against Supabase. Idempotent: replaying an already-applied operation is a
- * no-op server-side because every RPC dedupes on client_transaction_id. */
-export async function syncPending() {
-  if (syncing) return;
-  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+ * no-op server-side because every RPC dedupes on client_transaction_id.
+ *
+ * Only ever retries "pending" items. A permanent rejection (Postgres errcode P0001/42501 — a
+ * business-rule error like insufficient stock, which will never succeed no matter how many times
+ * it's retried) is deleted right away rather than left to retry forever; its error is returned in
+ * permanentFailures so a caller waiting on this specific item (see enqueue) can report it. */
+export async function syncPending(): Promise<{ permanentFailures: Map<string, string> }> {
+  const permanentFailures = new Map<string, string>();
+
+  if (syncing) return { permanentFailures };
+  if (typeof navigator !== "undefined" && !navigator.onLine) return { permanentFailures };
 
   syncing = true;
   await notify();
 
   const supabase = createClient();
-  const items = await db.outbox.where("status").anyOf("pending", "failed").sortBy("created_at");
+  const items = await db.outbox.where("status").equals("pending").sortBy("created_at");
 
   let lastError: string | null = null;
 
@@ -94,31 +92,33 @@ export async function syncPending() {
 
       if (error) throw error;
 
-      await db.outbox.update(item.client_transaction_id, {
-        status: "synced",
-        synced_at: new Date().toISOString(),
-      });
+      await db.outbox.delete(item.client_transaction_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Sync failed";
       const code = (err as { code?: string } | null)?.code;
       // Our RPCs raise P0001 for expected business-rule rejections (insufficient stock, missing
-      // customer, etc.) — those will never succeed on retry, so surface them as a real failure.
-      // Anything else (network drops, timeouts) has no stable Postgres error code and should stay
-      // "pending" to retry automatically rather than alarm the user for a transient blip.
+      // customer, etc.) — those will never succeed on retry. Anything else (network drops,
+      // timeouts) has no stable Postgres error code and should stay "pending" to retry
+      // automatically rather than be discarded for a transient blip.
       const permanent = code === "P0001" || code === "42501";
       lastError = message;
-      await db.outbox.update(item.client_transaction_id, {
-        status: permanent ? "failed" : "pending",
-        attempts: item.attempts + 1,
-        last_error: message,
-      });
+
+      if (permanent) {
+        permanentFailures.set(item.client_transaction_id, message);
+        await db.outbox.delete(item.client_transaction_id);
+      } else {
+        await db.outbox.update(item.client_transaction_id, {
+          status: "pending",
+          attempts: item.attempts + 1,
+          last_error: message,
+        });
+      }
     }
   }
 
-  await db.outbox.where("status").equals("synced").delete();
-
   syncing = false;
   await notify(lastError);
+  return { permanentFailures };
 }
 
 export function startAutoSync() {
