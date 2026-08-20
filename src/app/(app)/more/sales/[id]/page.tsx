@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
 import { formatMoney, formatDateTime } from "@/lib/utils";
-import { PrintButton } from "@/components/sales/print-button";
+import { ReceiptActions } from "@/components/sales/receipt-actions";
 
 const METHOD_LABEL: Record<string, string> = {
   cash: "Cash",
@@ -162,7 +162,51 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         )}
       </Card>
 
-      <PrintButton />
+      <ReceiptActions receiptText={buildReceiptText()} />
     </div>
   );
+
+  function buildReceiptText() {
+    const s = sale!;
+    const lines: string[] = [];
+    const bName = businessDetails?.name ?? business.name;
+    lines.push(bName);
+    if (businessDetails?.address) lines.push(businessDetails.address);
+    if (businessDetails?.phone) lines.push(businessDetails.phone);
+    lines.push("");
+    lines.push(`Receipt: ${s.sale_number}`);
+    lines.push(`Date: ${formatDateTime(s.sold_at)}`);
+    if (customer) lines.push(`Customer: ${customer.name}${customer.phone ? ` (${customer.phone})` : ""}`);
+    lines.push("");
+
+    for (const item of items ?? []) {
+      const product = productMap.get(item.product_id);
+      const name = product?.name ?? "Product";
+      const disc = item.discount > 0 ? ` -${formatMoney(item.discount, business.currency)}` : "";
+      lines.push(`${item.quantity} x ${name} @ ${formatMoney(item.unit_price, business.currency)}${disc} = ${formatMoney(item.line_total, business.currency)}`);
+    }
+
+    lines.push("");
+    if (s.discount_total > 0) {
+      lines.push(`Subtotal: ${formatMoney(s.subtotal, business.currency)}`);
+      lines.push(`Discount: -${formatMoney(s.discount_total, business.currency)}`);
+    }
+    lines.push(`*Total: ${formatMoney(s.total, business.currency)}*`);
+    lines.push("");
+
+    for (const p of payments ?? []) {
+      lines.push(`${METHOD_LABEL[p.method] ?? p.method}: ${formatMoney(p.amount, business.currency)}`);
+      if (p.tendered_amount !== null) {
+        lines.push(`  Received ${formatMoney(p.tendered_amount, business.currency)} | Change ${formatMoney(p.change_amount ?? 0, business.currency)}`);
+      }
+    }
+
+    if (creditTxn?.due_date) lines.push(`Payment due: ${formatDateTime(creditTxn.due_date)}`);
+    if (businessDetails?.receipt_footer) {
+      lines.push("");
+      lines.push(businessDetails.receipt_footer);
+    }
+
+    return lines.join("\n");
+  }
 }
