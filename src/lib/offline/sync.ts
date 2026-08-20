@@ -10,7 +10,14 @@ export interface SyncState {
 }
 
 let listeners: SyncListener[] = [];
-let syncing = false;
+let syncingFlag = false;
+// FIFO queue instead of a boolean re-entrancy guard: a caller of syncPending() must be able to
+// trust that ITS OWN item (just put into the outbox) gets processed. A boolean guard that simply
+// bails out when a sync is already in flight can skip an item enqueued after the in-flight run
+// already took its outbox snapshot — the item then sits unsynced for up to 30s (the auto-sync
+// interval) even though the caller was told "ok". Chaining onto a shared tail promise guarantees
+// every call gets its own fresh runSync() pass that starts after its enqueue() completed.
+let syncTail: Promise<unknown> = Promise.resolve();
 
 export function onSyncStateChange(listener: SyncListener) {
   listeners.push(listener);
@@ -25,7 +32,7 @@ async function notify(lastError: string | null = null) {
   // never lingers here — otherwise the badge would show "N waiting to sync" forever for a sale
   // that will never succeed no matter how many times it's retried.
   const pending = await db.outbox.where("status").anyOf("pending", "syncing").count();
-  for (const listener of listeners) listener({ pending, syncing, lastError });
+  for (const listener of listeners) listener({ pending, syncing: syncingFlag, lastError });
 }
 
 export type EnqueueResult = { ok: true } | { ok: false; error: string };
@@ -66,14 +73,26 @@ export async function enqueue(
  * Only ever retries "pending" items. A permanent rejection (Postgres errcode P0001/42501 — a
  * business-rule error like insufficient stock, which will never succeed no matter how many times
  * it's retried) is deleted right away rather than left to retry forever; its error is returned in
- * permanentFailures so a caller waiting on this specific item (see enqueue) can report it. */
-export async function syncPending(): Promise<{ permanentFailures: Map<string, string> }> {
+ * permanentFailures so a caller waiting on this specific item (see enqueue) can report it.
+ *
+ * Queued on syncTail (see comment above) rather than run directly: this guarantees the caller's
+ * own pass over the outbox starts only after every previously-queued call has finished, so an
+ * item just written by this same caller's enqueue() is never skipped by a run that already took
+ * its outbox snapshot before that write happened. */
+export function syncPending(): Promise<{ permanentFailures: Map<string, string> }> {
+  const result = syncTail.then(runSyncOnce);
+  // Keep the tail alive even if this run rejects, so a later caller doesn't chain onto a
+  // permanently-rejected promise and get stuck forever.
+  syncTail = result.catch(() => undefined);
+  return result;
+}
+
+async function runSyncOnce(): Promise<{ permanentFailures: Map<string, string> }> {
   const permanentFailures = new Map<string, string>();
 
-  if (syncing) return { permanentFailures };
   if (typeof navigator !== "undefined" && !navigator.onLine) return { permanentFailures };
 
-  syncing = true;
+  syncingFlag = true;
   await notify();
 
   const supabase = createClient();
@@ -116,7 +135,7 @@ export async function syncPending(): Promise<{ permanentFailures: Map<string, st
     }
   }
 
-  syncing = false;
+  syncingFlag = false;
   await notify(lastError);
   return { permanentFailures };
 }
