@@ -304,6 +304,29 @@ type StockTakeItemRow = {
   reason: string | null;
 };
 
+type ReturnRow = {
+  id: string;
+  business_id: string;
+  sale_id: string;
+  return_number: string;
+  total: number;
+  refund_method: string;
+  notes: string | null;
+  client_transaction_id: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+type ReturnItemRow = {
+  id: string;
+  business_id: string;
+  return_id: string;
+  sale_item_id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+};
+
 type AiInsightRow = {
   id: string;
   business_id: string;
@@ -410,6 +433,21 @@ export interface Database {
           counted_quantity: number;
         }
       >;
+      returns: Table<
+        ReturnRow,
+        Partial<ReturnRow> & { business_id: string; sale_id: string; return_number: string; total: number; refund_method: string }
+      >;
+      return_items: Table<
+        ReturnItemRow,
+        Partial<ReturnItemRow> & {
+          business_id: string;
+          return_id: string;
+          sale_item_id: string;
+          product_id: string;
+          quantity: number;
+          unit_price: number;
+        }
+      >;
       expenses: Table<ExpenseRow, Partial<ExpenseRow> & { business_id: string; category: string; amount: number }>;
       ai_insights: Table<AiInsightRow, Partial<AiInsightRow> & { business_id: string; title: string; body: string }>;
     };
@@ -475,6 +513,17 @@ export interface Database {
           p_reference?: string | null;
         };
         Returns: CreditTransactionRow;
+      };
+      record_return: {
+        Args: {
+          p_business_id: string;
+          p_location_id: string;
+          p_sale_id: string;
+          p_items: unknown;
+          p_refund_method: string;
+          p_client_transaction_id: string;
+        };
+        Returns: ReturnRow;
       };
     };
   };
