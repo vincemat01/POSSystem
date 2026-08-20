@@ -1,11 +1,27 @@
--- Kompass POS — record_sale: the single, transactional entry point for completing a sale.
--- Idempotent on client_transaction_id so the offline sync engine can safely retry (spec §47-48).
--- Applies FEFO deduction for expiry-tracked products (spec §28), captures unit_cost at time of
--- sale (spec §22), and raises a credit_sale ledger entry when part of the tender is on credit.
--- security definer: fefo_deduct() updates inventory_batches.quantity_remaining, and that table's
--- direct UPDATE policy is restricted to owner/manager/stock_manager (spec §8) — a cashier ringing
--- up a sale of an expiry-tracked product would otherwise be blocked by RLS. Authorization is
--- still enforced explicitly below (is_business_member check + every write scoped to p_business_id).
+-- Fix: both functions below perform writes that the *calling* user may not have direct RLS
+-- privileges for (product_price_history has no insert policy at all — it's meant to be written
+-- only by this trigger; inventory_batches updates are restricted to owner/manager/stock_manager,
+-- which would block a cashier's sale of an expiry-tracked product). Marking them security definer
+-- lets them do those internal writes regardless of the caller's role, while the explicit
+-- is_business_member()/business_id scoping in record_sale (and the fact that
+-- record_product_price_change only ever fires from the products trigger) keeps authorization
+-- intact.
+
+create or replace function record_product_price_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' or new.cost_price is distinct from old.cost_price or new.selling_price is distinct from old.selling_price then
+    insert into product_price_history (business_id, product_id, cost_price, selling_price, changed_by)
+    values (new.business_id, new.id, new.cost_price, new.selling_price, auth.uid());
+  end if;
+  return new;
+end;
+$$;
+
 create or replace function record_sale(
   p_business_id uuid,
   p_location_id uuid,
@@ -163,57 +179,5 @@ begin
   on conflict (business_id, client_transaction_id) do nothing;
 
   return v_sale;
-end;
-$$;
-
--- Record a payment against a customer's credit account (spec §16: partial payments never
--- overwrite history — they are appended as their own ledger row).
-create or replace function record_credit_payment(
-  p_business_id uuid,
-  p_customer_id uuid,
-  p_amount numeric,
-  p_method payment_method,
-  p_client_transaction_id uuid,
-  p_reference text default null
-)
-returns credit_transactions
-language plpgsql
-security invoker
-as $$
-declare
-  v_credit_account credit_accounts;
-  v_txn credit_transactions;
-begin
-  if not is_business_member(p_business_id) then
-    raise exception 'Not a member of this business' using errcode = '42501';
-  end if;
-
-  select * into v_txn from credit_transactions
-  where business_id = p_business_id and client_transaction_id = p_client_transaction_id;
-  if found then
-    return v_txn;
-  end if;
-
-  select * into v_credit_account from credit_accounts
-  where business_id = p_business_id and customer_id = p_customer_id;
-  if not found then
-    raise exception 'No credit account for this customer' using errcode = 'P0001';
-  end if;
-
-  insert into credit_transactions (
-    business_id, credit_account_id, type, amount, notes, created_by, client_transaction_id
-  ) values (
-    p_business_id, v_credit_account.id, 'payment', -p_amount, p_reference, auth.uid(), p_client_transaction_id
-  )
-  returning * into v_txn;
-
-  insert into payments (business_id, credit_transaction_id, method, amount, reference, received_by, client_transaction_id)
-  values (p_business_id, v_txn.id, p_method, p_amount, p_reference, auth.uid(), p_client_transaction_id);
-
-  insert into sync_queue (business_id, device_id, entity_type, entity_id, client_transaction_id)
-  values (p_business_id, 'unknown', 'credit_transaction', v_txn.id, p_client_transaction_id)
-  on conflict (business_id, client_transaction_id) do nothing;
-
-  return v_txn;
 end;
 $$;

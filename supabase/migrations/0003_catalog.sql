@@ -66,10 +66,15 @@ create table product_price_history (
 
 create index product_price_history_product_id_idx on product_price_history (product_id, effective_from desc);
 
--- Record a price history row whenever cost or selling price changes.
+-- Record a price history row whenever cost or selling price changes. security definer because
+-- this fires from a trigger on `products` — the inserting user (e.g. a stock_manager) may not
+-- otherwise have insert rights on product_price_history, which has no direct-write policy since
+-- it should only ever be written here, not by client code (see 0009 RLS policies).
 create or replace function record_product_price_change()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' or new.cost_price is distinct from old.cost_price or new.selling_price is distinct from old.selling_price then
