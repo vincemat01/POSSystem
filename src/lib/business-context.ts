@@ -24,11 +24,17 @@ export async function getBusinessContext(): Promise<BusinessContext | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Ordered by created_at so this resolves to the SAME business on every request. Without an
+  // explicit order, .limit(1) on a user with more than one active membership (easy to end up
+  // with while testing — e.g. two businesses created during onboarding) is not guaranteed to
+  // return the same row each time, which made pages intermittently 404/appear empty depending on
+  // which business happened to get picked for that particular request.
   const { data: membership } = await supabase
     .from("business_members")
     .select("role, business_id, businesses(id, name, business_type, currency, prevent_expired_sale, low_stock_default_threshold)")
     .eq("user_id", user.id)
     .eq("active", true)
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
