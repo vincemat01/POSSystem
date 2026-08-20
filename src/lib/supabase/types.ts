@@ -188,6 +188,19 @@ type SaleItemRow = {
   returned_quantity: number;
 };
 
+type PaymentRow = {
+  id: string;
+  business_id: string;
+  sale_id: string | null;
+  credit_transaction_id: string | null;
+  method: PaymentMethod;
+  amount: number;
+  reference: string | null;
+  received_by: string | null;
+  client_transaction_id: string | null;
+  created_at: string;
+};
+
 type InventoryBatchRow = {
   id: string;
   business_id: string;
@@ -337,6 +350,10 @@ export interface Database {
           unit_cost: number;
           unit_price: number;
         }
+      >;
+      payments: Table<
+        PaymentRow,
+        Partial<PaymentRow> & { business_id: string; method: PaymentMethod; amount: number }
       >;
       inventory_batches: Table<
         InventoryBatchRow,

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, ShoppingCart, Package, Wallet, MoreHorizontal, Boxes, ClipboardList, Truck, ShoppingBag, Users, Receipt, BarChart3, CalendarClock, Settings } from "lucide-react";
+import { Home, ShoppingCart, Package, Wallet, MoreHorizontal, Boxes, ClipboardList, Truck, ShoppingBag, Users, Receipt, History, BarChart3, CalendarClock, Settings } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -16,6 +16,7 @@ export const primaryNav: NavItem[] = [
 ];
 
 export const moreNav: NavItem[] = [
+  { href: "/more/sales", label: "Sales", icon: History },
   { href: "/more/inventory", label: "Inventory", icon: Boxes },
   { href: "/more/stock-take", label: "Stock Take", icon: ClipboardList },
   { href: "/more/suppliers", label: "Suppliers", icon: Truck },

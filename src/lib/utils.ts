@@ -23,6 +23,17 @@ export function formatDate(date: string | Date, locale = "en-ZA") {
   return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(d);
 }
 
+export function formatDateTime(date: string | Date, locale = "en-ZA") {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
 export function daysUntil(date: string | Date) {
   const d = typeof date === "string" ? new Date(date) : date;
   const now = new Date();

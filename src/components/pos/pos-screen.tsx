@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Search, Plus, Minus, Trash2, ShoppingCart, CheckCircle2 } from "lucide-react";
 import { db, type CartItem } from "@/lib/offline/db";
@@ -18,6 +19,7 @@ export function PosScreen({
   currency: string;
   preventExpiredSale: boolean;
 }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -74,9 +76,17 @@ export function PosScreen({
   const total = cart.reduce((sum, i) => sum + i.unit_price * i.quantity - i.discount, 0);
   const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
-  function handleComplete() {
+  function handleComplete(receiptId?: string) {
     setCart([]);
     setShowCheckout(false);
+
+    if (receiptId) {
+      router.push(`/more/sales/${receiptId}`);
+      return;
+    }
+
+    // Offline: the sale isn't queryable yet (still just a local outbox entry), so there's no
+    // receipt to show — just confirm it was captured and will sync later.
     setConfirmed(true);
     setTimeout(() => setConfirmed(false), 2500);
   }
@@ -184,7 +194,7 @@ export function PosScreen({
         <div className="fixed inset-x-0 top-4 z-40 flex justify-center px-4">
           <div className="flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-lg">
             <CheckCircle2 className="h-4 w-4" />
-            Sale recorded
+            Sale saved — will sync when online
           </div>
         </div>
       )}

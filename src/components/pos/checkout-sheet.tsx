@@ -35,7 +35,7 @@ export function CheckoutSheet({
   total: number;
   allowExpired: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: (receiptId?: string) => void;
 }) {
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [customerId, setCustomerId] = useState<string>("");
@@ -62,6 +62,7 @@ export function CheckoutSheet({
 
     const clientTransactionId = newClientTransactionId();
     const deviceId = await getDeviceId();
+    const wasOnline = typeof navigator === "undefined" || navigator.onLine;
 
     const result = await enqueue({
       client_transaction_id: clientTransactionId,
@@ -94,7 +95,10 @@ export function CheckoutSheet({
       return;
     }
 
-    onComplete();
+    // Only the online path has actually reached the server by now (enqueue awaits the real sync
+    // when online — see sync.ts) so only then is the sale guaranteed queryable for a receipt.
+    // Offline, it's still just a local outbox entry until the next sync.
+    onComplete(wasOnline ? clientTransactionId : undefined);
   }
 
   return (

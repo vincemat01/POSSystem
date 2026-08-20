@@ -34,7 +34,7 @@ export function AppShell({
       <PwaRegister />
       <div className="flex min-h-dvh flex-col md:flex-row">
         {/* Desktop sidebar */}
-        <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface md:flex print:hidden">
           <div className="px-5 py-5">
             <p className="text-lg font-bold text-primary">Kompass POS</p>
             <p className="mt-0.5 truncate text-xs text-text-secondary">{businessName}</p>
@@ -70,7 +70,7 @@ export function AppShell({
 
         <div className="flex min-h-dvh flex-1 flex-col">
           {/* Top bar */}
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 md:px-6">
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4 md:px-6 print:hidden">
             <p className="text-sm font-semibold md:hidden">{businessName}</p>
             <div className="hidden md:block" />
             <NetworkStatusBadge />
@@ -79,7 +79,7 @@ export function AppShell({
           <main className="flex-1 overflow-y-auto pb-20 md:pb-6">{children}</main>
 
           {/* Mobile bottom nav */}
-          <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-surface md:hidden">
+          <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-surface md:hidden print:hidden">
             {primaryNav.map((item) => {
               const active = isActive(pathname, item.href);
               return (
