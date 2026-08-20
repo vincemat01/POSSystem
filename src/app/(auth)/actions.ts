@@ -11,6 +11,7 @@ const credentialsSchema = z.object({
 
 export interface AuthFormState {
   error?: string;
+  message?: string;
 }
 
 export async function signIn(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -41,9 +42,16 @@ export async function signUp(_prevState: AuthFormState, formData: FormData): Pro
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp(parsed.data);
+  const { data, error } = await supabase.auth.signUp(parsed.data);
   if (error) {
     return { error: error.message.includes("already registered") ? "An account with that email already exists." : "We couldn't create your account. Please try again." };
+  }
+
+  // If email confirmations are enabled on the project, signUp() creates the user but returns no
+  // session until they click the confirmation link — redirecting to /onboarding would just bounce
+  // them back to /login since there's no signed-in user yet.
+  if (!data.session) {
+    return { message: "Check your email to confirm your account, then sign in." };
   }
 
   redirect("/onboarding");
