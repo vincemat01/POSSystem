@@ -268,6 +268,27 @@ type SupplierProductRow = {
   created_at: string;
 };
 
+type StockTakeRow = {
+  id: string;
+  business_id: string;
+  location_id: string;
+  status: string;
+  started_by: string | null;
+  started_at: string;
+  completed_at: string | null;
+};
+
+type StockTakeItemRow = {
+  id: string;
+  business_id: string;
+  stock_take_id: string;
+  product_id: string;
+  system_quantity: number;
+  counted_quantity: number;
+  difference: number;
+  reason: string | null;
+};
+
 type AiInsightRow = {
   id: string;
   business_id: string;
@@ -356,6 +377,20 @@ export interface Database {
         SupplierProductRow,
         Partial<SupplierProductRow> & { business_id: string; supplier_id: string; product_id: string }
       >;
+      stock_takes: Table<
+        StockTakeRow,
+        Partial<StockTakeRow> & { business_id: string; location_id: string }
+      >;
+      stock_take_items: Table<
+        StockTakeItemRow,
+        Partial<StockTakeItemRow> & {
+          business_id: string;
+          stock_take_id: string;
+          product_id: string;
+          system_quantity: number;
+          counted_quantity: number;
+        }
+      >;
       expenses: Table<ExpenseRow, Partial<ExpenseRow> & { business_id: string; category: string; amount: number }>;
       ai_insights: Table<AiInsightRow, Partial<AiInsightRow> & { business_id: string; title: string; body: string }>;
     };
@@ -391,6 +426,14 @@ export interface Database {
           p_device_id?: string | null;
         };
         Returns: SaleRow;
+      };
+      record_stock_take: {
+        Args: {
+          p_business_id: string;
+          p_location_id: string;
+          p_items: unknown;
+        };
+        Returns: StockTakeRow;
       };
       record_purchase: {
         Args: {
