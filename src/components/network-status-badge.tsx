@@ -4,7 +4,7 @@ import { useNetworkStatus } from "@/components/providers/network-provider";
 import { cn } from "@/lib/utils";
 
 export function NetworkStatusBadge() {
-  const { online, pending, syncing } = useNetworkStatus();
+  const { online, pending, syncing, lastError } = useNetworkStatus();
 
   if (online && pending === 0) {
     return (
@@ -31,8 +31,14 @@ export function NetworkStatusBadge() {
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-secondary">
-      <span className={cn("h-1.5 w-1.5 rounded-full bg-accent-gold", syncing && "animate-pulse")} />
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-xs font-medium",
+        lastError && !syncing ? "text-danger" : "text-text-secondary",
+      )}
+      title={lastError && !syncing ? lastError : undefined}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", lastError && !syncing ? "bg-danger" : "bg-accent-gold", syncing && "animate-pulse")} />
       {syncing ? "Syncing…" : `${pending} waiting to sync`}
     </span>
   );

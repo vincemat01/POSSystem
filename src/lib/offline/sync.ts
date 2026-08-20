@@ -64,7 +64,17 @@ export async function enqueue(
 
   const { permanentFailures } = await syncPending();
   const failure = permanentFailures.get(item.client_transaction_id);
-  return failure ? { ok: false, error: failure } : { ok: true };
+  if (failure) return { ok: false, error: failure };
+
+  // The item should have been deleted from the outbox on success. If it's still there, sync hit
+  // a transient error — report it so the caller doesn't navigate to a receipt page for a sale
+  // that hasn't reached the server yet.
+  const remaining = await db.outbox.get(item.client_transaction_id);
+  if (remaining) {
+    return { ok: false, error: remaining.last_error ?? "Could not reach the server — sale saved and will sync automatically" };
+  }
+
+  return { ok: true };
 }
 
 /** Drain the outbox against Supabase. Idempotent: replaying an already-applied operation is a
@@ -113,16 +123,19 @@ async function runSyncOnce(): Promise<{ permanentFailures: Map<string, string> }
 
       await db.outbox.delete(item.client_transaction_id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Sync failed";
-      const code = (err as { code?: string } | null)?.code;
-      // Our RPCs raise P0001 for expected business-rule rejections (insufficient stock, missing
-      // customer, etc.) — those will never succeed on retry. Anything else (network drops,
-      // timeouts) has no stable Postgres error code and should stay "pending" to retry
-      // automatically rather than be discarded for a transient blip.
+      // Supabase PostgREST errors are plain objects with a `message` property but are NOT
+      // instances of Error — the old `instanceof Error` check fell through to the generic
+      // "Sync failed" string and hid the real problem (e.g. "column … does not exist").
+      const errObj = err as Record<string, unknown> | null;
+      const message =
+        typeof errObj?.message === "string" ? errObj.message : err instanceof Error ? err.message : "Sync failed";
+      const code = typeof errObj?.code === "string" ? errObj.code : undefined;
+
       const permanent = code === "P0001" || code === "42501";
+      const exhausted = item.attempts + 1 >= 20;
       lastError = message;
 
-      if (permanent) {
+      if (permanent || exhausted) {
         permanentFailures.set(item.client_transaction_id, message);
         await db.outbox.delete(item.client_transaction_id);
       } else {
