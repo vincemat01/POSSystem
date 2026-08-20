@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, RotateCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { formatMoney, formatDateTime } from "@/lib/utils";
 import { ReceiptActions } from "@/components/sales/receipt-actions";
 
@@ -63,14 +64,47 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       : { data: [] };
   const productMap = new Map((products ?? []).map((p) => [p.id, p]));
 
-  const { data: creditTxn } = sale.customer_id
-    ? await supabase
-        .from("credit_transactions")
-        .select("due_date")
-        .eq("sale_id", sale.id)
-        .eq("type", "credit_sale")
-        .maybeSingle()
-    : { data: null };
+  const [{ data: creditTxn }, { data: returns }] = await Promise.all([
+    sale.customer_id
+      ? supabase
+          .from("credit_transactions")
+          .select("due_date")
+          .eq("sale_id", sale.id)
+          .eq("type", "credit_sale")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("returns")
+      .select("id, return_number, total, refund_method, created_at")
+      .eq("sale_id", sale.id)
+      .eq("business_id", business.id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const returnIds = (returns ?? []).map((r) => r.id);
+  const { data: returnItems } =
+    returnIds.length > 0
+      ? await supabase
+          .from("return_items")
+          .select("id, return_id, product_id, quantity, unit_price")
+          .eq("business_id", business.id)
+          .in("return_id", returnIds)
+      : { data: [] };
+
+  const returnItemsByReturnId = new Map<string, typeof returnItems>();
+  for (const ri of returnItems ?? []) {
+    const list = returnItemsByReturnId.get(ri.return_id) ?? [];
+    list.push(ri);
+    returnItemsByReturnId.set(ri.return_id, list);
+  }
+
+  const REFUND_METHOD_LABEL: Record<string, string> = {
+    cash: "Cash refund",
+    credit: "Store credit",
+    original: "Original method",
+  };
+
+  const canReturn = sale.status === "completed" || sale.status === "partially_refunded";
 
   return (
     <div className="mx-auto max-w-md space-y-4 p-4 md:p-6 print:max-w-full">
@@ -161,6 +195,45 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           </p>
         )}
       </Card>
+
+      {(returns ?? []).length > 0 && (
+        <Card className="space-y-3">
+          <p className="text-sm font-bold">Returns</p>
+          {(returns ?? []).map((ret) => {
+            const rItems = returnItemsByReturnId.get(ret.id) ?? [];
+            return (
+              <div key={ret.id} className="border-t border-border pt-3 space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">{ret.return_number}</p>
+                  <p className="text-sm font-medium text-danger">
+                    −{formatMoney(ret.total, business.currency)}
+                  </p>
+                </div>
+                <p className="text-xs text-text-secondary">
+                  {formatDateTime(ret.created_at)} &middot; {REFUND_METHOD_LABEL[ret.refund_method] ?? ret.refund_method}
+                </p>
+                {rItems.map((ri) => {
+                  const product = productMap.get(ri.product_id);
+                  return (
+                    <p key={ri.id} className="text-xs text-text-secondary">
+                      {ri.quantity} &times; {product?.name ?? "Product"} @ {formatMoney(ri.unit_price, business.currency)}
+                    </p>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      {canReturn && (
+        <Link href={`/more/sales/${sale.id}/return`} className="block print:hidden">
+          <Button variant="secondary" className="w-full gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Return Items
+          </Button>
+        </Link>
+      )}
 
       <ReceiptActions receiptText={buildReceiptText()} />
     </div>
