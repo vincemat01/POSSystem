@@ -38,6 +38,7 @@ export function CheckoutSheet({
   onComplete: (receiptId?: string) => void;
 }) {
   const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [tendered, setTendered] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>(() => {
     const d = new Date();
@@ -55,8 +56,15 @@ export function CheckoutSheet({
       ? selectedCustomer.credit_balance + total > selectedCustomer.credit_limit && selectedCustomer.credit_limit > 0
       : false;
 
+  const tenderedNum = tendered !== "" ? parseFloat(tendered) : null;
+  const change = tenderedNum !== null ? tenderedNum - total : null;
+  const insufficientTender = method === "cash" && tenderedNum !== null && tenderedNum < total;
+
+  const quickAmounts = [total, ...[50, 100, 200, 500].filter((n) => n > total)].slice(0, 4);
+
   async function handleConfirm() {
     if (method === "credit" && !customerId) return;
+    if (insufficientTender) return;
     setSubmitting(true);
     setError(null);
 
@@ -79,7 +87,14 @@ export function CheckoutSheet({
             unit_price: i.unit_price,
             discount: i.discount,
           })),
-          p_payments: [{ method, amount: total }],
+          p_payments: [
+            {
+              method,
+              amount: total,
+              tendered_amount: method === "cash" && tenderedNum !== null ? tenderedNum : undefined,
+              change_amount: method === "cash" && change !== null ? Math.max(change, 0) : undefined,
+            },
+          ],
           p_customer_id: method === "credit" ? customerId : null,
           p_credit_due_date: method === "credit" ? dueDate : null,
           p_allow_expired: allowExpired,
@@ -124,6 +139,46 @@ export function CheckoutSheet({
             ))}
           </div>
         </div>
+
+        {method === "cash" && (
+          <div className="mt-4 space-y-3">
+            <div>
+              <Label htmlFor="tendered">Amount received</Label>
+              <Input
+                id="tendered"
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                placeholder={formatMoney(total, currency)}
+                value={tendered}
+                onChange={(e) => setTendered(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {quickAmounts.map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  onClick={() => setTendered(String(amount))}
+                  className="h-9 rounded-[10px] border border-border px-3 text-sm font-medium text-text-secondary hover:border-primary/40"
+                >
+                  {amount === total ? "Exact" : formatMoney(amount, currency)}
+                </button>
+              ))}
+            </div>
+            {insufficientTender && (
+              <p className="rounded-[10px] bg-danger-light px-3 py-2 text-sm text-danger">
+                Amount received is less than the total due.
+              </p>
+            )}
+            {!insufficientTender && change !== null && change > 0 && (
+              <p className="rounded-[10px] bg-primary-light px-3 py-2 text-sm font-semibold text-primary-dark">
+                Change due: {formatMoney(change, currency)}
+              </p>
+            )}
+          </div>
+        )}
 
         {method === "credit" && (
           <div className="mt-4 space-y-3">
@@ -172,7 +227,7 @@ export function CheckoutSheet({
             className="flex-1"
             size="lg"
             onClick={handleConfirm}
-            disabled={submitting || (method === "credit" && !customerId)}
+            disabled={submitting || (method === "credit" && !customerId) || insufficientTender}
           >
             {submitting ? "Recording…" : "Confirm sale"}
           </Button>

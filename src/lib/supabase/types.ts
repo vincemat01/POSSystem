@@ -198,6 +198,8 @@ type PaymentRow = {
   reference: string | null;
   received_by: string | null;
   client_transaction_id: string | null;
+  tendered_amount: number | null;
+  change_amount: number | null;
   created_at: string;
 };
 

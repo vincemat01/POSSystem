@@ -48,7 +48,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       .eq("business_id", business.id),
     supabase
       .from("payments")
-      .select("id, method, amount")
+      .select("id, method, amount, tendered_amount, change_amount")
       .eq("sale_id", sale.id)
       .eq("business_id", business.id),
     sale.customer_id
@@ -137,9 +137,17 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
 
         <div className="border-t border-dashed border-border pt-3 space-y-1">
           {(payments ?? []).map((p) => (
-            <div key={p.id} className="flex items-center justify-between text-sm">
-              <span className="text-text-secondary">{METHOD_LABEL[p.method] ?? p.method}</span>
-              <span>{formatMoney(p.amount, business.currency)}</span>
+            <div key={p.id}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-secondary">{METHOD_LABEL[p.method] ?? p.method}</span>
+                <span>{formatMoney(p.amount, business.currency)}</span>
+              </div>
+              {p.tendered_amount !== null && (
+                <div className="flex items-center justify-between text-xs text-text-secondary">
+                  <span>Received {formatMoney(p.tendered_amount, business.currency)}</span>
+                  <span>Change {formatMoney(p.change_amount ?? 0, business.currency)}</span>
+                </div>
+              )}
             </div>
           ))}
           {creditTxn?.due_date && (
