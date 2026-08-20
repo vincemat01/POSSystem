@@ -235,6 +235,39 @@ type ExpenseRow = {
   created_at: string;
 };
 
+type PurchaseRow = {
+  id: string;
+  business_id: string;
+  location_id: string;
+  supplier_id: string | null;
+  purchase_date: string;
+  total_cost: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+type PurchaseItemRow = {
+  id: string;
+  business_id: string;
+  purchase_id: string;
+  product_id: string;
+  batch_id: string | null;
+  quantity: number;
+  unit_cost: number;
+  line_total: number;
+};
+
+type SupplierProductRow = {
+  id: string;
+  business_id: string;
+  supplier_id: string;
+  product_id: string;
+  last_cost_price: number | null;
+  last_purchase_date: string | null;
+  created_at: string;
+};
+
 type AiInsightRow = {
   id: string;
   business_id: string;
@@ -305,6 +338,24 @@ export interface Database {
           quantity: number;
         }
       >;
+      purchases: Table<
+        PurchaseRow,
+        Partial<PurchaseRow> & { business_id: string; location_id: string }
+      >;
+      purchase_items: Table<
+        PurchaseItemRow,
+        Partial<PurchaseItemRow> & {
+          business_id: string;
+          purchase_id: string;
+          product_id: string;
+          quantity: number;
+          unit_cost: number;
+        }
+      >;
+      supplier_products: Table<
+        SupplierProductRow,
+        Partial<SupplierProductRow> & { business_id: string; supplier_id: string; product_id: string }
+      >;
       expenses: Table<ExpenseRow, Partial<ExpenseRow> & { business_id: string; category: string; amount: number }>;
       ai_insights: Table<AiInsightRow, Partial<AiInsightRow> & { business_id: string; title: string; body: string }>;
     };
@@ -340,6 +391,17 @@ export interface Database {
           p_device_id?: string | null;
         };
         Returns: SaleRow;
+      };
+      record_purchase: {
+        Args: {
+          p_business_id: string;
+          p_location_id: string;
+          p_items: unknown;
+          p_supplier_id?: string | null;
+          p_purchase_date?: string;
+          p_notes?: string | null;
+        };
+        Returns: PurchaseRow;
       };
       record_credit_payment: {
         Args: {
