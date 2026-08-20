@@ -1,17 +1,63 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import Link from "next/link";
-import { ScanBarcode, Camera, ChevronLeft } from "lucide-react";
+import { ScanBarcode, Camera, ChevronLeft, X } from "lucide-react";
 import { createProduct, type ProductFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { BarcodeScanner } from "@/components/barcode-scanner";
+
+function compressImage(file: File, maxWidth = 800, quality = 0.8): Promise<File> {
+  return new Promise((resolve) => {
+    const img = document.createElement("img");
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.naturalWidth);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => resolve(new File([blob!], "product.jpg", { type: "image/jpeg" })),
+        "image/jpeg",
+        quality,
+      );
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
 
 const initialState: ProductFormState = {};
 
 export default function NewProductPage() {
-  const [state, formAction, pending] = useActionState(createProduct, initialState);
+  const [state, baseAction, pending] = useActionState(createProduct, initialState);
+  const [scanning, setScanning] = useState(false);
+  const [barcode, setBarcode] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const compressed = await compressImage(file);
+    setImageFile(compressed);
+    setImagePreview(URL.createObjectURL(compressed));
+  }
+
+  function clearImage() {
+    setImagePreview(null);
+    setImageFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function formAction(formData: FormData) {
+    if (imageFile) formData.set("image", imageFile);
+    if (barcode) formData.set("barcode", barcode);
+    return baseAction(formData);
+  }
 
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4 md:p-6">
@@ -24,28 +70,37 @@ export default function NewProductPage() {
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          disabled
-          title="Barcode scanning is coming soon"
-          className="flex flex-col items-center gap-1.5 rounded-[12px] border border-border bg-surface py-4 text-sm font-medium text-text-secondary opacity-60"
+          onClick={() => setScanning(true)}
+          className="flex flex-col items-center gap-1.5 rounded-[12px] border border-border bg-surface py-4 text-sm font-medium text-text hover:border-primary/40 active:bg-primary-light/40"
         >
           <ScanBarcode className="h-5 w-5" />
           Scan Barcode
-          <span className="text-[10px] uppercase tracking-wide">Coming soon</span>
         </button>
         <button
           type="button"
-          disabled
-          title="AI photo capture is coming soon"
-          className="flex flex-col items-center gap-1.5 rounded-[12px] border border-border bg-surface py-4 text-sm font-medium text-text-secondary opacity-60"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex flex-col items-center gap-1.5 rounded-[12px] border border-border bg-surface py-4 text-sm font-medium text-text hover:border-primary/40 active:bg-primary-light/40"
         >
           <Camera className="h-5 w-5" />
-          Take Photo
-          <span className="text-[10px] uppercase tracking-wide">Coming soon</span>
+          {imagePreview ? "Change Photo" : "Add Photo"}
         </button>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
       </div>
 
+      {imagePreview && (
+        <div className="relative mx-auto w-40">
+          <img src={imagePreview} alt="Product preview" className="h-40 w-40 rounded-[12px] border border-border object-cover" />
+          <button
+            type="button"
+            onClick={clearImage}
+            className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-danger text-white shadow"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       <Card className="p-5">
-        <p className="mb-4 text-sm font-semibold">Add manually</p>
         <form action={formAction} className="space-y-4">
           <div>
             <Label htmlFor="name">Product name</Label>
@@ -55,7 +110,13 @@ export default function NewProductPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="barcode">Barcode</Label>
-              <Input id="barcode" name="barcode" placeholder="Optional" />
+              <Input
+                id="barcode"
+                name="barcode"
+                placeholder="Optional"
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+              />
             </div>
             <div>
               <Label htmlFor="sku">SKU</Label>
@@ -99,6 +160,16 @@ export default function NewProductPage() {
           </Button>
         </form>
       </Card>
+
+      {scanning && (
+        <BarcodeScanner
+          onScan={(value) => {
+            setBarcode(value);
+            setScanning(false);
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
     </div>
   );
 }

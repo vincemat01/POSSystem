@@ -41,6 +41,20 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
   if (!context) redirect("/onboarding");
 
   const supabase = await createClient();
+
+  let imageUrl: string | null = null;
+  const imageFile = formData.get("image") as File | null;
+  if (imageFile && imageFile.size > 0) {
+    const path = `${context.business.id}/${crypto.randomUUID()}.jpg`;
+    const { error: uploadErr } = await supabase.storage
+      .from("product-images")
+      .upload(path, imageFile, { contentType: imageFile.type, upsert: true });
+    if (!uploadErr) {
+      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+      imageUrl = data.publicUrl;
+    }
+  }
+
   const { error } = await supabase.from("products").insert({
     business_id: context.business.id,
     name: parsed.data.name,
@@ -51,6 +65,7 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
     selling_price: parsed.data.selling_price,
     minimum_stock: parsed.data.minimum_stock,
     tracks_expiry: parsed.data.tracks_expiry,
+    image_url: imageUrl,
   });
 
   if (error) {
@@ -59,6 +74,36 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
 
   revalidatePath("/products");
   redirect("/products");
+}
+
+export async function updateProductImage(_prevState: ProductFormState, formData: FormData): Promise<ProductFormState> {
+  const productId = formData.get("product_id") as string;
+  const imageFile = formData.get("image") as File | null;
+  if (!productId || !imageFile || imageFile.size === 0) return { error: "No image selected." };
+
+  const context = await getBusinessContext();
+  if (!context) redirect("/onboarding");
+
+  const supabase = await createClient();
+  const path = `${context.business.id}/${crypto.randomUUID()}.jpg`;
+  const { error: uploadErr } = await supabase.storage
+    .from("product-images")
+    .upload(path, imageFile, { contentType: imageFile.type, upsert: true });
+
+  if (uploadErr) return { error: "Image upload failed. Please try again." };
+
+  const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+  const { error } = await supabase
+    .from("products")
+    .update({ image_url: data.publicUrl })
+    .eq("id", productId)
+    .eq("business_id", context.business.id);
+
+  if (error) return { error: "Could not update the product image." };
+
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/products");
+  return {};
 }
 
 const adjustStockSchema = z.object({

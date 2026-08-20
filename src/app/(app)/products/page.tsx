@@ -21,7 +21,7 @@ export default async function ProductsPage({
 
   let query = supabase
     .from("products")
-    .select("id, name, selling_price, unit, minimum_stock, barcode, active")
+    .select("id, name, selling_price, unit, minimum_stock, barcode, active, image_url")
     .eq("business_id", business.id)
     .eq("active", true)
     .order("name");
@@ -79,15 +79,26 @@ export default async function ProductsPage({
             const low = product.minimum_stock > 0 && product.stock <= product.minimum_stock;
             return (
               <Link key={product.id} href={`/products/${product.id}`}>
-                <Card className="flex items-center justify-between hover:border-primary/30">
-                  <div>
-                    <p className="text-sm font-semibold">{product.name}</p>
+                <Card className="flex items-center gap-3 hover:border-primary/30">
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt=""
+                      className="h-12 w-12 shrink-0 rounded-[8px] object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] bg-primary-light text-lg font-bold text-primary">
+                      {product.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{product.name}</p>
                     <p className="text-xs text-text-secondary">
                       {product.stock} {product.unit} in stock
                       {product.barcode ? ` · ${product.barcode}` : ""}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p className="text-sm font-semibold">{formatMoney(product.selling_price, business.currency)}</p>
                     {low && <p className={cn("text-xs font-medium text-warning")}>Low stock</p>}
                   </div>

@@ -6,6 +6,7 @@ import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
 import { formatMoney, formatDate, daysUntil } from "@/lib/utils";
 import { AdjustStockForm } from "@/components/products/adjust-stock-form";
+import { ProductImageUpload } from "@/components/products/product-image-upload";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -52,9 +53,12 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <ChevronLeft className="h-4 w-4" /> Back to products
       </Link>
 
-      <div>
-        <h1 className="text-xl font-bold">{product.name}</h1>
-        {product.barcode && <p className="text-xs text-text-secondary">{product.barcode}</p>}
+      <div className="flex items-start gap-4">
+        <ProductImageUpload productId={product.id} imageUrl={product.image_url} productName={product.name} />
+        <div>
+          <h1 className="text-xl font-bold">{product.name}</h1>
+          {product.barcode && <p className="text-xs text-text-secondary">{product.barcode}</p>}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

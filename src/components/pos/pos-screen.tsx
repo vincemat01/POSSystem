@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CheckCircle2, ScanBarcode } from "lucide-react";
 import { db, type CartItem } from "@/lib/offline/db";
 import { formatMoney } from "@/lib/utils";
 import { CheckoutSheet } from "./checkout-sheet";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 
 export function PosScreen({
   businessId,
@@ -24,6 +25,7 @@ export function PosScreen({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   const products = useLiveQuery(async () => {
     const all = await db.products.where("business_id").equals(businessId).and((p) => p.active).toArray();
@@ -94,16 +96,26 @@ export function PosScreen({
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-border p-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search or scan a product…"
-            autoFocus
-            className="h-12 w-full rounded-[10px] border border-border bg-surface pl-10 pr-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search or scan a product…"
+              autoFocus
+              className="h-12 w-full rounded-[10px] border border-border bg-surface pl-10 pr-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setScanning(true)}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-border bg-surface text-text-secondary hover:border-primary/40"
+            aria-label="Scan barcode"
+          >
+            <ScanBarcode className="h-5 w-5" />
+          </button>
         </div>
       </div>
 
@@ -120,6 +132,9 @@ export function PosScreen({
                 onClick={() => addToCart(product)}
                 className="rounded-[12px] border border-border bg-surface p-3 text-left transition-colors hover:border-primary/40 active:bg-primary-light/40"
               >
+                {product.image_url ? (
+                  <img src={product.image_url} alt="" className="mb-2 h-16 w-full rounded-[8px] object-cover" />
+                ) : null}
                 <p className="text-sm font-semibold leading-tight">{product.name}</p>
                 <p className="mt-1 text-xs text-text-secondary">{product.stock_on_hand} {product.unit}</p>
                 <p className="mt-1 text-sm font-bold text-primary">{formatMoney(product.selling_price, currency)}</p>
@@ -187,6 +202,16 @@ export function PosScreen({
           allowExpired={!preventExpiredSale}
           onClose={() => setShowCheckout(false)}
           onComplete={handleComplete}
+        />
+      )}
+
+      {scanning && (
+        <BarcodeScanner
+          onScan={(value) => {
+            setScanning(false);
+            setSearch(value);
+          }}
+          onClose={() => setScanning(false)}
         />
       )}
 
