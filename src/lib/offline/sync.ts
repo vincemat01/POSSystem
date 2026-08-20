@@ -24,9 +24,19 @@ async function notify(lastError: string | null = null) {
   for (const listener of listeners) listener({ pending, syncing, lastError });
 }
 
+export type EnqueueResult = { ok: true } | { ok: false; error: string };
+
 /** Queue an offline-safe operation. Call this instead of hitting Supabase directly from the POS
- * so sales keep working with no network (spec §45-46). */
-export async function enqueue(item: Omit<OutboxItem, "status" | "attempts" | "last_error" | "created_at" | "synced_at">) {
+ * so sales keep working with no network (spec §45-46).
+ *
+ * When online, this waits for the actual sync attempt and reports whether the server accepted it
+ * — a real failure (e.g. insufficient stock) must not be reported as success just because the
+ * write reached local storage. When offline, it returns success immediately once queued, since
+ * that's the correct behavior for offline-first: the operation is safely stored and will sync
+ * later (spec §48-49). */
+export async function enqueue(
+  item: Omit<OutboxItem, "status" | "attempts" | "last_error" | "created_at" | "synced_at">,
+): Promise<EnqueueResult> {
   await db.outbox.put({
     ...item,
     status: "pending",
@@ -36,9 +46,27 @@ export async function enqueue(item: Omit<OutboxItem, "status" | "attempts" | "la
     synced_at: null,
   });
   await notify();
-  if (typeof navigator !== "undefined" && navigator.onLine) {
-    void syncPending();
+
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return { ok: true };
   }
+
+  await syncPending();
+  const stored = await db.outbox.get(item.client_transaction_id);
+  // "pending" here means the attempt hit a transient error (e.g. a dropped connection) and will
+  // retry automatically — that's still a success from the cashier's point of view, matching the
+  // offline-first promise that a queued sale is safe. Only "failed" (a permanent rejection from
+  // the server, like insufficient stock) needs their attention right now.
+  if (!stored || stored.status === "synced" || stored.status === "pending") {
+    return { ok: true };
+  }
+
+  // A permanent rejection (e.g. insufficient stock) will never succeed on retry — surface it now
+  // and drop it, rather than leaving it to retry forever and permanently show "waiting to sync."
+  const error = stored.last_error ?? "We couldn't complete that. Please try again.";
+  await db.outbox.delete(item.client_transaction_id);
+  await notify();
+  return { ok: false, error };
 }
 
 /** Drain the outbox against Supabase. Idempotent: replaying an already-applied operation is a
@@ -72,9 +100,15 @@ export async function syncPending() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Sync failed";
+      const code = (err as { code?: string } | null)?.code;
+      // Our RPCs raise P0001 for expected business-rule rejections (insufficient stock, missing
+      // customer, etc.) — those will never succeed on retry, so surface them as a real failure.
+      // Anything else (network drops, timeouts) has no stable Postgres error code and should stay
+      // "pending" to retry automatically rather than alarm the user for a transient blip.
+      const permanent = code === "P0001" || code === "42501";
       lastError = message;
       await db.outbox.update(item.client_transaction_id, {
-        status: "failed",
+        status: permanent ? "failed" : "pending",
         attempts: item.attempts + 1,
         last_error: message,
       });

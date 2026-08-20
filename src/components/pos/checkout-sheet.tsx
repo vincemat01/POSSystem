@@ -45,6 +45,7 @@ export function CheckoutSheet({
     return d.toISOString().slice(0, 10);
   });
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const customers = useLiveQuery(() => db.customers.where("business_id").equals(businessId).toArray(), [businessId]);
 
@@ -57,11 +58,12 @@ export function CheckoutSheet({
   async function handleConfirm() {
     if (method === "credit" && !customerId) return;
     setSubmitting(true);
+    setError(null);
 
     const clientTransactionId = newClientTransactionId();
     const deviceId = await getDeviceId();
 
-    await enqueue({
+    const result = await enqueue({
       client_transaction_id: clientTransactionId,
       business_id: businessId,
       operation: {
@@ -86,6 +88,12 @@ export function CheckoutSheet({
     });
 
     setSubmitting(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
     onComplete();
   }
 
@@ -149,6 +157,8 @@ export function CheckoutSheet({
             )}
           </div>
         )}
+
+        {error && <p className="mt-4 rounded-[10px] bg-danger-light px-3 py-2 text-sm text-danger">{error}</p>}
 
         <div className="mt-5 flex gap-3">
           <Button variant="secondary" className="flex-1" size="lg" onClick={onClose} disabled={submitting}>
