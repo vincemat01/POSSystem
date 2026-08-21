@@ -27,6 +27,8 @@ create policy shifts_update on shifts for update
   using (is_business_member(business_id) and user_id = auth.uid());
 
 -- Update get_member_emails to also return display_name
+-- Must drop first because the return type changed (added display_name column)
+drop function if exists get_member_emails(uuid);
 create or replace function get_member_emails(p_business_id uuid)
 returns table(user_id uuid, email text, display_name text)
 language plpgsql security definer set search_path = ''
