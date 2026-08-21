@@ -3,6 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
+type DetectorLike = {
+  new (opts: { formats: string[] }): { detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]> };
+};
+
+async function getDetectorClass(): Promise<DetectorLike | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ("BarcodeDetector" in globalThis) return (globalThis as any).BarcodeDetector;
+  try {
+    const mod = await import("barcode-detector/pure");
+    return mod.BarcodeDetector as unknown as DetectorLike;
+  } catch {
+    return null;
+  }
+}
+
 export function BarcodeScanner({ onScan, onClose }: { onScan: (value: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -13,8 +28,9 @@ export function BarcodeScanner({ onScan, onClose }: { onScan: (value: string) =>
     let cancelled = false;
 
     (async () => {
-      if (!("BarcodeDetector" in globalThis)) {
-        setError("Barcode scanning is not supported in this browser. Try Chrome or Safari.");
+      const DetectorClass = await getDetectorClass();
+      if (!DetectorClass) {
+        setError("Barcode scanning is not supported in this browser.");
         return;
       }
 
@@ -37,8 +53,7 @@ export function BarcodeScanner({ onScan, onClose }: { onScan: (value: string) =>
       video.srcObject = stream;
       await video.play();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const detector = new (globalThis as any).BarcodeDetector({
+      const detector = new DetectorClass({
         formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"],
       });
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Search, Plus, Minus, Trash2, ShoppingCart, CheckCircle2, ScanBarcode } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, CheckCircle2, ScanBarcode, Percent } from "lucide-react";
 import { db, type CartItem } from "@/lib/offline/db";
 import { formatMoney } from "@/lib/utils";
 import { CheckoutSheet } from "./checkout-sheet";
@@ -26,6 +26,7 @@ export function PosScreen({
   const [showCheckout, setShowCheckout] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [discountOpen, setDiscountOpen] = useState<string | null>(null);
 
   const products = useLiveQuery(async () => {
     const all = await db.products.where("business_id").equals(businessId).and((p) => p.active).toArray();
@@ -73,6 +74,18 @@ export function PosScreen({
 
   function removeItem(productId: string) {
     setCart((prev) => prev.filter((i) => i.product_id !== productId));
+  }
+
+  function applyDiscount(productId: string, type: "percent" | "fixed", value: number) {
+    setCart((prev) =>
+      prev.map((i) => {
+        if (i.product_id !== productId) return i;
+        const lineTotal = i.unit_price * i.quantity;
+        const disc = type === "percent" ? Math.round(lineTotal * (value / 100) * 100) / 100 : Math.min(value, lineTotal);
+        return { ...i, discount: Math.max(disc, 0) };
+      }),
+    );
+    setDiscountOpen(null);
   }
 
   const total = cart.reduce((sum, i) => sum + i.unit_price * i.quantity - i.discount, 0);
@@ -148,31 +161,65 @@ export function PosScreen({
         <div className="fixed inset-x-0 bottom-16 z-20 border-t border-border bg-surface md:bottom-0 md:left-60">
           <div className="max-h-56 overflow-y-auto p-3">
             {cart.map((item) => (
-              <div key={item.product_id} className="flex items-center justify-between gap-2 py-1.5">
-                <p className="flex-1 truncate text-sm">{item.name}</p>
-                <div className="flex items-center gap-1.5">
+              <div key={item.product_id} className="py-1.5">
+                <div className="flex items-center justify-between gap-2">
                   <button
-                    onClick={() => updateQuantity(item.product_id, -1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border"
-                    aria-label="Decrease quantity"
+                    type="button"
+                    onClick={() => setDiscountOpen(discountOpen === item.product_id ? null : item.product_id)}
+                    className="flex-1 truncate text-left text-sm"
                   >
-                    <Minus className="h-3.5 w-3.5" />
+                    {item.name}
+                    {item.discount > 0 && (
+                      <span className="ml-1 text-xs text-primary">-{formatMoney(item.discount, currency)}</span>
+                    )}
                   </button>
-                  <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(item.product_id, 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border"
-                    aria-label="Increase quantity"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => updateQuantity(item.product_id, -1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border"
+                      aria-label="Decrease quantity"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(item.product_id, 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border"
+                      aria-label="Increase quantity"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <p className="w-16 text-right text-sm font-semibold">
+                    {formatMoney(item.unit_price * item.quantity - item.discount, currency)}
+                  </p>
+                  <button onClick={() => removeItem(item.product_id)} aria-label="Remove item">
+                    <Trash2 className="h-4 w-4 text-text-secondary" />
                   </button>
                 </div>
-                <p className="w-16 text-right text-sm font-semibold">
-                  {formatMoney(item.unit_price * item.quantity - item.discount, currency)}
-                </p>
-                <button onClick={() => removeItem(item.product_id)} aria-label="Remove item">
-                  <Trash2 className="h-4 w-4 text-text-secondary" />
-                </button>
+                {discountOpen === item.product_id && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 pl-1">
+                    {[5, 10, 15, 20].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => applyDiscount(item.product_id, "percent", pct)}
+                        className="flex h-8 items-center gap-0.5 rounded-[8px] border border-border px-2 text-xs font-medium text-text-secondary hover:border-primary/40"
+                      >
+                        {pct}<Percent className="h-3 w-3" />
+                      </button>
+                    ))}
+                    {item.discount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => applyDiscount(item.product_id, "fixed", 0)}
+                        className="h-8 rounded-[8px] border border-border px-2 text-xs font-medium text-danger hover:border-danger/40"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
