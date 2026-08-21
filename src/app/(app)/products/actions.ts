@@ -106,6 +106,60 @@ export async function updateProductImage(_prevState: ProductFormState, formData:
   return {};
 }
 
+const updateSchema = z.object({
+  product_id: z.string().uuid(),
+  name: z.string().trim().min(1, "Enter a product name."),
+  barcode: z.string().trim().optional(),
+  sku: z.string().trim().optional(),
+  unit: z.string().trim().min(1).default("each"),
+  cost_price: z.coerce.number().min(0, "Cost price can't be negative."),
+  selling_price: z.coerce.number().min(0, "Selling price can't be negative."),
+  minimum_stock: z.coerce.number().min(0).default(0),
+});
+
+export async function updateProduct(_prevState: ProductFormState, formData: FormData): Promise<ProductFormState> {
+  const parsed = updateSchema.safeParse({
+    product_id: formData.get("product_id"),
+    name: formData.get("name"),
+    barcode: formData.get("barcode") || undefined,
+    sku: formData.get("sku") || undefined,
+    unit: formData.get("unit") || "each",
+    cost_price: formData.get("cost_price") || 0,
+    selling_price: formData.get("selling_price") || 0,
+    minimum_stock: formData.get("minimum_stock") || 0,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Please check the form and try again." };
+  }
+
+  const context = await getBusinessContext();
+  if (!context) redirect("/onboarding");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("products")
+    .update({
+      name: parsed.data.name,
+      barcode: parsed.data.barcode || null,
+      sku: parsed.data.sku || null,
+      unit: parsed.data.unit,
+      cost_price: parsed.data.cost_price,
+      selling_price: parsed.data.selling_price,
+      minimum_stock: parsed.data.minimum_stock,
+    })
+    .eq("id", parsed.data.product_id)
+    .eq("business_id", context.business.id);
+
+  if (error) {
+    return { error: "We couldn't update that product. Please try again." };
+  }
+
+  revalidatePath(`/products/${parsed.data.product_id}`);
+  revalidatePath("/products");
+  redirect(`/products/${parsed.data.product_id}`);
+}
+
 const adjustStockSchema = z.object({
   product_id: z.string().uuid(),
   quantity: z.coerce.number().refine((n) => n !== 0, "Enter a non-zero quantity."),

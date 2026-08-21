@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { formatMoney, formatDate, daysUntil } from "@/lib/utils";
 import { AdjustStockForm } from "@/components/products/adjust-stock-form";
 import { ProductImageUpload } from "@/components/products/product-image-upload";
+import { EditProductForm } from "@/components/products/edit-product-form";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -85,6 +86,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           )}
         </Card>
       </div>
+
+      <EditProductForm product={product} />
 
       <AdjustStockForm productId={product.id} tracksExpiry={product.tracks_expiry} />
 
