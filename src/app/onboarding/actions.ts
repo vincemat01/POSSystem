@@ -59,3 +59,27 @@ export async function createBusiness(_prevState: OnboardingState, formData: Form
 
   redirect("/home");
 }
+
+export interface JoinState {
+  error?: string;
+}
+
+export async function joinWithCode(_prev: JoinState, formData: FormData): Promise<JoinState> {
+  const code = (formData.get("code") as string)?.trim().toUpperCase();
+  if (!code || code.length < 4) return { error: "Enter a valid invite code." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data, error } = await supabase.rpc("claim_invite", { p_code: code });
+
+  if (error) return { error: "Something went wrong. Please try again." };
+
+  const result = data as { ok: boolean; error?: string };
+  if (!result.ok) return { error: result.error ?? "Invalid invite code." };
+
+  redirect("/home");
+}

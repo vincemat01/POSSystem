@@ -83,6 +83,18 @@ type BusinessMemberRow = {
   created_at: string;
 };
 
+type StaffInviteRow = {
+  id: string;
+  business_id: string;
+  code: string;
+  role: BusinessRole;
+  created_by: string;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  expires_at: string;
+  created_at: string;
+};
+
 type CategoryRow = { id: string; business_id: string; name: string; parent_id: string | null; created_at: string };
 
 type SupplierRow = {
@@ -347,6 +359,10 @@ export interface Database {
         BusinessMemberRow,
         Partial<BusinessMemberRow> & { business_id: string; user_id: string }
       >;
+      staff_invites: Table<
+        StaffInviteRow,
+        Partial<StaffInviteRow> & { business_id: string; code: string; created_by: string }
+      >;
       categories: Table<CategoryRow, Partial<CategoryRow> & { business_id: string; name: string }>;
       suppliers: Table<SupplierRow, Partial<SupplierRow> & { business_id: string; name: string }>;
       products: Table<ProductRow, Partial<ProductRow> & { business_id: string; name: string }>;
@@ -513,6 +529,14 @@ export interface Database {
           p_reference?: string | null;
         };
         Returns: CreditTransactionRow;
+      };
+      claim_invite: {
+        Args: { p_code: string };
+        Returns: unknown;
+      };
+      get_member_emails: {
+        Args: { p_business_id: string };
+        Returns: { user_id: string; email: string }[];
       };
       record_return: {
         Args: {
