@@ -138,26 +138,26 @@ export function PosScreen({
             {search ? "No products match." : "No products cached yet — connect to the internet once to sync your catalog."}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
             {products.map((product) => (
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className="flex flex-col rounded-[12px] border border-border bg-surface text-left transition-colors hover:border-primary/40 active:bg-primary-light/40"
+                className="flex flex-col rounded-[10px] border border-border bg-surface text-left transition-colors hover:border-primary/40 active:bg-primary-light/40"
               >
-                <div className="aspect-square w-full overflow-hidden rounded-t-[12px] bg-primary-light/30">
+                <div className="flex h-16 w-full items-center justify-center overflow-hidden rounded-t-[10px] bg-primary-light/30 sm:h-20">
                   {product.image_url ? (
                     <img src={product.image_url} alt="" className="h-full w-full object-contain" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-primary/40">
+                    <span className="text-lg font-bold text-primary/40">
                       {product.name.charAt(0).toUpperCase()}
-                    </div>
+                    </span>
                   )}
                 </div>
-                <div className="p-2.5">
-                  <p className="text-sm font-semibold leading-tight">{product.name}</p>
-                  <p className="mt-0.5 text-xs text-text-secondary">{product.stock_on_hand} {product.unit}</p>
-                  <p className="mt-0.5 text-sm font-bold text-primary">{formatMoney(product.selling_price, currency)}</p>
+                <div className="p-1.5">
+                  <p className="line-clamp-2 text-xs font-semibold leading-tight">{product.name}</p>
+                  <p className="mt-0.5 text-[11px] text-text-secondary">{product.stock_on_hand} {product.unit}</p>
+                  <p className="mt-0.5 text-xs font-bold text-primary">{formatMoney(product.selling_price, currency)}</p>
                 </div>
               </button>
             ))}
