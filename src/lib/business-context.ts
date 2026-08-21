@@ -16,8 +16,6 @@ export interface BusinessContext {
   displayName: string | null;
 }
 
-/** Server-side helper: resolves the signed-in user's business (their first active membership).
- * Multi-business switching is future scope (spec §77) — V1 assumes one business per owner. */
 export async function getBusinessContext(): Promise<BusinessContext | null> {
   const supabase = await createClient();
   const {
@@ -25,14 +23,9 @@ export async function getBusinessContext(): Promise<BusinessContext | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Ordered by created_at so this resolves to the SAME business on every request. Without an
-  // explicit order, .limit(1) on a user with more than one active membership (easy to end up
-  // with while testing — e.g. two businesses created during onboarding) is not guaranteed to
-  // return the same row each time, which made pages intermittently 404/appear empty depending on
-  // which business happened to get picked for that particular request.
   const { data: membership } = await supabase
     .from("business_members")
-    .select("role, business_id, display_name, businesses(id, name, business_type, currency, prevent_expired_sale, low_stock_default_threshold)")
+    .select("role, business_id, businesses(id, name, business_type, currency, prevent_expired_sale, low_stock_default_threshold)")
     .eq("user_id", user.id)
     .eq("active", true)
     .order("created_at", { ascending: true })
@@ -50,11 +43,22 @@ export async function getBusinessContext(): Promise<BusinessContext | null> {
 
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
 
+  let displayName: string | null = null;
+  const { data: nameRow } = await supabase
+    .from("business_members")
+    .select("display_name")
+    .eq("business_id", membership.business_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (nameRow && "display_name" in nameRow) {
+    displayName = (nameRow as { display_name: string | null }).display_name;
+  }
+
   return {
     business,
     locationId: location?.id ?? "",
     role: membership.role,
     userId: user.id,
-    displayName: membership.display_name ?? null,
+    displayName,
   };
 }
