@@ -106,7 +106,9 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
       <div>
-        <h1 className="text-xl font-bold">{greeting()} 👋</h1>
+        <h1 className="text-xl font-bold">
+          {greeting()}{context.displayName ? `, ${context.displayName.split(" ")[0]}` : ""} 👋
+        </h1>
         <p className="text-sm text-text-secondary">{business.name}</p>
       </div>
 

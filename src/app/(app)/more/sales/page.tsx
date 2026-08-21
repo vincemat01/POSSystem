@@ -47,7 +47,7 @@ export default async function SalesHistoryPage({
 
   let dbQuery = supabase
     .from("sales")
-    .select("id, sale_number, total, status, sold_at, customer_id", { count: "exact" })
+    .select("id, sale_number, total, status, sold_at, customer_id, cashier_id", { count: "exact" })
     .eq("business_id", business.id);
 
   if (fromDate) {
@@ -82,6 +82,16 @@ export default async function SalesHistoryPage({
       ? await supabase.from("customers").select("id, name").in("id", customerIds)
       : { data: [] };
   const customerMap = new Map((customers ?? []).map((c) => [c.id, c.name]));
+
+  const cashierIds = [...new Set((sales ?? []).map((s) => s.cashier_id).filter(Boolean))] as string[];
+  const cashierMap = new Map<string, string>();
+  for (const cid of cashierIds) {
+    const { data: name } = await supabase.rpc("get_cashier_name", {
+      p_business_id: business.id,
+      p_user_id: cid,
+    });
+    if (name) cashierMap.set(cid, name as string);
+  }
 
   function buildPageUrl(p: number) {
     const sp = new URLSearchParams();
@@ -123,6 +133,7 @@ export default async function SalesHistoryPage({
                   <p className="text-sm font-semibold">{s.sale_number}</p>
                   <p className="text-xs text-text-secondary">
                     {formatDateTime(s.sold_at)}
+                    {s.cashier_id ? ` · ${cashierMap.get(s.cashier_id) ?? "Staff"}` : ""}
                     {s.customer_id ? ` · ${customerMap.get(s.customer_id) ?? "Customer"}` : ""}
                     {s.status !== "completed" ? ` · ${STATUS_LABEL[s.status] ?? s.status}` : ""}
                   </p>

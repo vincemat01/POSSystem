@@ -8,6 +8,8 @@ import { primaryNav } from "@/components/nav";
 import { NetworkStatusBadge } from "@/components/network-status-badge";
 import { NetworkProvider } from "@/components/providers/network-provider";
 import { PwaRegister } from "@/components/providers/pwa-register";
+import type { BusinessRole } from "@/lib/supabase/types";
+import { canAccessPath } from "@/lib/role-access";
 
 function isActive(pathname: string, href: string) {
   if (href === "/more") return pathname.startsWith("/more");
@@ -18,16 +20,20 @@ export function AppShell({
   businessName,
   businessId,
   locationId,
+  role,
   onSignOut,
   children,
 }: {
   businessName: string;
   businessId: string;
   locationId: string;
+  role: BusinessRole;
   onSignOut: () => void;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+
+  const visibleNav = primaryNav.filter((item) => canAccessPath(role, item.href));
 
   return (
     <NetworkProvider businessId={businessId} locationId={locationId}>
@@ -40,7 +46,7 @@ export function AppShell({
             <p className="mt-0.5 truncate text-xs text-text-secondary">{businessName}</p>
           </div>
           <nav className="flex-1 space-y-1 px-3">
-            {primaryNav.map((item) => {
+            {visibleNav.map((item) => {
               const active = isActive(pathname, item.href);
               return (
                 <Link
@@ -80,7 +86,7 @@ export function AppShell({
 
           {/* Mobile bottom nav */}
           <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-surface md:hidden print:hidden">
-            {primaryNav.map((item) => {
+            {visibleNav.map((item) => {
               const active = isActive(pathname, item.href);
               return (
                 <Link

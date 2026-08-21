@@ -72,3 +72,15 @@ body {
   background: var(--color-primary-light);
   color: var(--color-primary-dark);
 }
+
+@media print {
+  body {
+    background: white;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  .print\:block {
+    display: block !important;
+  }
+}

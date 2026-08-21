@@ -12,6 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       businessName={context.business.name}
       businessId={context.business.id}
       locationId={context.locationId}
+      role={context.role}
       onSignOut={signOut}
     >
       {children}

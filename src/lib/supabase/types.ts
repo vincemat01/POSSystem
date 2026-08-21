@@ -80,6 +80,20 @@ type BusinessMemberRow = {
   role: BusinessRole;
   active: boolean;
   invited_by: string | null;
+  display_name: string | null;
+  created_at: string;
+};
+
+type ShiftRow = {
+  id: string;
+  business_id: string;
+  location_id: string;
+  user_id: string;
+  started_at: string;
+  ended_at: string | null;
+  opening_cash: number;
+  closing_cash: number | null;
+  notes: string | null;
   created_at: string;
 };
 
@@ -363,6 +377,10 @@ export interface Database {
         StaffInviteRow,
         Partial<StaffInviteRow> & { business_id: string; code: string; created_by: string }
       >;
+      shifts: Table<
+        ShiftRow,
+        Partial<ShiftRow> & { business_id: string; location_id: string; user_id: string }
+      >;
       categories: Table<CategoryRow, Partial<CategoryRow> & { business_id: string; name: string }>;
       suppliers: Table<SupplierRow, Partial<SupplierRow> & { business_id: string; name: string }>;
       products: Table<ProductRow, Partial<ProductRow> & { business_id: string; name: string }>;
@@ -536,7 +554,11 @@ export interface Database {
       };
       get_member_emails: {
         Args: { p_business_id: string };
-        Returns: { user_id: string; email: string }[];
+        Returns: { user_id: string; email: string; display_name: string | null }[];
+      };
+      get_cashier_name: {
+        Args: { p_business_id: string; p_user_id: string };
+        Returns: string;
       };
       record_return: {
         Args: {

@@ -64,8 +64,13 @@ export default function OnboardingPage() {
           <Card className="p-6">
             <form action={createAction} className="space-y-4">
               <div>
+                <Label htmlFor="owner_name">Your name</Label>
+                <Input id="owner_name" name="owner_name" placeholder="e.g. Thandi Moyo" required autoFocus />
+              </div>
+
+              <div>
                 <Label htmlFor="name">Business name</Label>
-                <Input id="name" name="name" placeholder="e.g. Thandi's Spaza" required autoFocus />
+                <Input id="name" name="name" placeholder="e.g. Thandi's Spaza" required />
               </div>
 
               <div>
@@ -103,13 +108,23 @@ export default function OnboardingPage() {
           <Card className="p-6">
             <form action={joinAction} className="space-y-4">
               <div>
+                <Label htmlFor="display_name">Your name</Label>
+                <Input
+                  id="display_name"
+                  name="display_name"
+                  placeholder="e.g. Thandi Moyo"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
                 <Label htmlFor="code">Invite code</Label>
                 <Input
                   id="code"
                   name="code"
                   placeholder="e.g. ABC123"
                   required
-                  autoFocus
                   className="text-center text-lg font-bold tracking-widest uppercase"
                 />
               </div>

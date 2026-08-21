@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
@@ -68,6 +68,20 @@ export default async function ReportsPage({
       </Link>
 
       <h1 className="text-xl font-bold">Reports</h1>
+
+      <Link href="/more/reports/daily">
+        <Card className="flex items-center gap-3 hover:border-primary/30">
+          <div className="rounded-full bg-primary-light p-2">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Daily Report</p>
+            <p className="text-xs text-text-secondary">
+              Full daily summary with cashier breakdown, printable
+            </p>
+          </div>
+        </Card>
+      </Link>
 
       <div className="flex gap-2">
         {RANGES.map((r) => (
