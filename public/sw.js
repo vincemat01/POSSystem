@@ -7,8 +7,8 @@
 // network-first with cache only as a genuine offline fallback — a cache-first strategy there
 // would (and did) keep serving a stale page indefinitely after every deploy, since the same URL
 // never changes even though its content does.
-const CACHE_NAME = "kompass-shell-v2";
-const SHELL_ASSETS = ["/", "/manifest.webmanifest", "/icons/icon.svg"];
+const CACHE_NAME = "kompass-shell-v3";
+const SHELL_ASSETS = ["/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -31,8 +31,13 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  // Never cache API/data routes — those go through the sync engine's own offline handling.
   if (url.pathname.startsWith("/api/")) return;
+
+  // Never cache auth or navigation pages — these depend on cookie state
+  if (url.pathname === "/" || url.pathname.startsWith("/login") || url.pathname.startsWith("/signup") || url.pathname.startsWith("/onboarding") || url.pathname.startsWith("/auth")) return;
+
+  // Never cache RSC data requests — these carry auth state
+  if (request.headers.get("RSC") === "1") return;
 
   const isImmutableAsset = url.pathname.startsWith("/_next/static/");
 

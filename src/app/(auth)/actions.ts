@@ -29,7 +29,7 @@ export async function signIn(_prevState: AuthFormState, formData: FormData): Pro
     return { error: "That email and password don't match our records." };
   }
 
-  redirect("/");
+  redirect("/home");
 }
 
 export async function signUp(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {
