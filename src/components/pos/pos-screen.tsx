@@ -143,14 +143,22 @@ export function PosScreen({
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className="rounded-[12px] border border-border bg-surface p-3 text-left transition-colors hover:border-primary/40 active:bg-primary-light/40"
+                className="flex flex-col rounded-[12px] border border-border bg-surface text-left transition-colors hover:border-primary/40 active:bg-primary-light/40"
               >
-                {product.image_url ? (
-                  <img src={product.image_url} alt="" className="mb-2 h-16 w-full rounded-[8px] object-cover" />
-                ) : null}
-                <p className="text-sm font-semibold leading-tight">{product.name}</p>
-                <p className="mt-1 text-xs text-text-secondary">{product.stock_on_hand} {product.unit}</p>
-                <p className="mt-1 text-sm font-bold text-primary">{formatMoney(product.selling_price, currency)}</p>
+                <div className="aspect-square w-full overflow-hidden rounded-t-[12px] bg-primary-light/30">
+                  {product.image_url ? (
+                    <img src={product.image_url} alt="" className="h-full w-full object-contain" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-primary/40">
+                      {product.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="p-2.5">
+                  <p className="text-sm font-semibold leading-tight">{product.name}</p>
+                  <p className="mt-0.5 text-xs text-text-secondary">{product.stock_on_hand} {product.unit}</p>
+                  <p className="mt-0.5 text-sm font-bold text-primary">{formatMoney(product.selling_price, currency)}</p>
+                </div>
               </button>
             ))}
           </div>
