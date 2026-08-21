@@ -4,19 +4,19 @@ const ROLE_PERMISSIONS: Record<BusinessRole, Set<string>> = {
   owner: new Set([
     "pos", "sales", "products", "inventory", "stock_take", "suppliers",
     "purchases", "customers", "credit", "expenses", "reports", "expiry",
-    "staff", "settings", "cash_up", "shifts",
+    "staff", "settings", "cash_up", "shifts", "profile",
   ]),
   manager: new Set([
     "pos", "sales", "products", "inventory", "stock_take", "suppliers",
     "purchases", "customers", "credit", "expenses", "reports", "expiry",
-    "staff", "cash_up", "shifts",
+    "staff", "cash_up", "shifts", "profile",
   ]),
   cashier: new Set([
-    "pos", "sales", "customers", "credit", "cash_up", "shifts",
+    "pos", "sales", "customers", "credit", "cash_up", "shifts", "profile",
   ]),
   stock_manager: new Set([
     "pos", "sales", "products", "inventory", "stock_take", "suppliers",
-    "purchases", "expiry", "cash_up", "shifts",
+    "purchases", "expiry", "cash_up", "shifts", "profile",
   ]),
 };
 
@@ -39,6 +39,7 @@ const PATH_PERMISSIONS: Record<string, string> = {
   "/more/expiry": "expiry",
   "/more/shifts": "shifts",
   "/more/staff": "staff",
+  "/more/profile": "profile",
   "/more/settings": "settings",
   "/more/cash-up": "cash_up",
 };

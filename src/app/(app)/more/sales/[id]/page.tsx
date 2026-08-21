@@ -41,6 +41,15 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
 
   if (!sale) notFound();
 
+  let cashierName: string | null = null;
+  if (sale.cashier_id) {
+    const { data: name } = await supabase.rpc("get_cashier_name", {
+      p_business_id: business.id,
+      p_user_id: sale.cashier_id,
+    });
+    if (name) cashierName = name as string;
+  }
+
   const [{ data: items }, { data: payments }, { data: customer }] = await Promise.all([
     supabase
       .from("sale_items")
@@ -122,6 +131,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         <div className="border-t border-dashed border-border pt-3 text-center">
           <p className="text-sm font-semibold">{sale.sale_number}</p>
           <p className="text-xs text-text-secondary">{formatDateTime(sale.sold_at)}</p>
+          {cashierName && (
+            <p className="text-xs text-text-secondary">Served by: {cashierName}</p>
+          )}
           {sale.status !== "completed" && (
             <p className="mt-1 text-xs font-semibold uppercase text-warning">{sale.status.replace("_", " ")}</p>
           )}
@@ -249,6 +261,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     lines.push("");
     lines.push(`Receipt: ${s.sale_number}`);
     lines.push(`Date: ${formatDateTime(s.sold_at)}`);
+    if (cashierName) lines.push(`Served by: ${cashierName}`);
     if (customer) lines.push(`Customer: ${customer.name}${customer.phone ? ` (${customer.phone})` : ""}`);
     lines.push("");
 
