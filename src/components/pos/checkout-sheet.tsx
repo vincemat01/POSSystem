@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Star } from "lucide-react";
 import { db, type CartItem, newClientTransactionId, getDeviceId } from "@/lib/offline/db";
 import { enqueue } from "@/lib/offline/sync";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,8 @@ export function CheckoutSheet({
   items,
   total,
   allowExpired,
+  loyaltyEnabled,
+  loyaltyPointValue,
   onClose,
   onComplete,
 }: {
@@ -46,6 +48,8 @@ export function CheckoutSheet({
   items: CartItem[];
   total: number;
   allowExpired: boolean;
+  loyaltyEnabled: boolean;
+  loyaltyPointValue: number;
   onClose: () => void;
   onComplete: (receiptId?: string) => void;
 }) {
@@ -56,16 +60,30 @@ export function CheckoutSheet({
     d.setDate(d.getDate() + 30);
     return d.toISOString().slice(0, 10);
   });
+  const [redeemPoints, setRedeemPoints] = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const customers = useLiveQuery(() => db.customers.where("business_id").equals(businessId).toArray(), [businessId]);
 
+  const selectedCustomer = useMemo(() => customers?.find((c) => c.id === customerId), [customers, customerId]);
+
+  const customerLoyaltyPoints = selectedCustomer?.loyalty_points ?? 0;
+  const parsedPointsToRedeem = redeemPoints ? Math.min(
+    Math.max(Math.floor(parseFloat(pointsToRedeem) || 0), 0),
+    customerLoyaltyPoints,
+  ) : 0;
+  const loyaltyDiscount = parsedPointsToRedeem * loyaltyPointValue;
+  const maxRedeemablePoints = Math.floor(total / loyaltyPointValue);
+  const effectiveMaxPoints = Math.min(customerLoyaltyPoints, maxRedeemablePoints);
+
+  const effectiveTotal = Math.max(total - loyaltyDiscount, 0);
+
   const allocated = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-  const remaining = Math.round((total - allocated) * 100) / 100;
+  const remaining = Math.round((effectiveTotal - allocated) * 100) / 100;
   const hasCredit = payments.some((p) => p.method === "credit");
 
-  const selectedCustomer = useMemo(() => customers?.find((c) => c.id === customerId), [customers, customerId]);
   const creditTotal = payments
     .filter((p) => p.method === "credit")
     .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
@@ -109,6 +127,31 @@ export function CheckoutSheet({
     (!hasCredit || customerId !== "") &&
     payments.every((p) => (parseFloat(p.amount) || 0) > 0);
 
+  function handleRedeemToggle(checked: boolean) {
+    setRedeemPoints(checked);
+    if (checked && effectiveMaxPoints > 0) {
+      setPointsToRedeem(String(effectiveMaxPoints));
+      const newEffectiveTotal = Math.max(total - effectiveMaxPoints * loyaltyPointValue, 0);
+      if (payments.length === 1) {
+        setPayments([newEntry(payments[0].method, newEffectiveTotal)]);
+      }
+    } else {
+      setPointsToRedeem("");
+      if (payments.length === 1) {
+        setPayments([newEntry(payments[0].method, total)]);
+      }
+    }
+  }
+
+  function handlePointsChange(value: string) {
+    setPointsToRedeem(value);
+    const pts = Math.min(Math.max(Math.floor(parseFloat(value) || 0), 0), effectiveMaxPoints);
+    const newEffectiveTotal = Math.max(total - pts * loyaltyPointValue, 0);
+    if (payments.length === 1) {
+      setPayments([newEntry(payments[0].method, newEffectiveTotal)]);
+    }
+  }
+
   async function handleConfirm() {
     if (!canConfirm) return;
     setSubmitting(true);
@@ -118,35 +161,42 @@ export function CheckoutSheet({
     const deviceId = await getDeviceId();
     const wasOnline = typeof navigator === "undefined" || navigator.onLine;
 
+    const saleArgs: Record<string, unknown> = {
+      p_business_id: businessId,
+      p_location_id: locationId,
+      p_client_transaction_id: clientTransactionId,
+      p_items: items.map((i) => ({
+        product_id: i.product_id,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        discount: i.discount,
+      })),
+      p_payments: payments.map((p) => {
+        const cash = getCashDetails(p);
+        return {
+          method: p.method,
+          amount: parseFloat(p.amount) || 0,
+          tendered_amount: cash?.tenderedNum ?? undefined,
+          change_amount: cash?.change != null ? Math.max(cash.change, 0) : undefined,
+        };
+      }),
+      p_customer_id: hasCredit || customerId ? customerId || null : null,
+      p_credit_due_date: hasCredit ? dueDate : null,
+      p_allow_expired: allowExpired,
+      p_device_id: deviceId,
+    };
+
+    if (parsedPointsToRedeem > 0) {
+      saleArgs.p_loyalty_points_redeemed = parsedPointsToRedeem;
+      saleArgs.p_customer_id = customerId;
+    }
+
     const result = await enqueue({
       client_transaction_id: clientTransactionId,
       business_id: businessId,
       operation: {
         kind: "sale",
-        args: {
-          p_business_id: businessId,
-          p_location_id: locationId,
-          p_client_transaction_id: clientTransactionId,
-          p_items: items.map((i) => ({
-            product_id: i.product_id,
-            quantity: i.quantity,
-            unit_price: i.unit_price,
-            discount: i.discount,
-          })),
-          p_payments: payments.map((p) => {
-            const cash = getCashDetails(p);
-            return {
-              method: p.method,
-              amount: parseFloat(p.amount) || 0,
-              tendered_amount: cash?.tenderedNum ?? undefined,
-              change_amount: cash?.change != null ? Math.max(cash.change, 0) : undefined,
-            };
-          }),
-          p_customer_id: hasCredit ? customerId : null,
-          p_credit_due_date: hasCredit ? dueDate : null,
-          p_allow_expired: allowExpired,
-          p_device_id: deviceId,
-        },
+        args: saleArgs,
       },
     });
 
@@ -160,11 +210,79 @@ export function CheckoutSheet({
     onComplete(wasOnline ? clientTransactionId : undefined);
   }
 
+  const showLoyalty = loyaltyEnabled && customerId && customerLoyaltyPoints > 0;
+
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-[16px] bg-surface p-5 md:rounded-[16px]">
         <h2 className="text-lg font-semibold">Checkout</h2>
         <p className="mt-1 text-2xl font-bold text-primary">{formatMoney(total, currency)}</p>
+
+        {loyaltyEnabled && (
+          <div className="mt-3">
+            <Label htmlFor="checkout-customer">Customer (for loyalty points)</Label>
+            <select
+              id="checkout-customer"
+              value={customerId}
+              onChange={(e) => {
+                setCustomerId(e.target.value);
+                setRedeemPoints(false);
+                setPointsToRedeem("");
+              }}
+              className="h-11 w-full rounded-[10px] border border-border bg-surface px-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              <option value="">No customer selected</option>
+              {(customers ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.phone ? `(${c.phone})` : ""} {c.loyalty_points > 0 ? `- ${c.loyalty_points} pts` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {showLoyalty && (
+          <div className="mt-3 rounded-[10px] border border-accent-gold/30 bg-gold-light/60 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-accent-gold" />
+              <span className="text-sm font-semibold">{customerLoyaltyPoints} loyalty points</span>
+              <span className="text-xs text-text-secondary">
+                (worth {formatMoney(customerLoyaltyPoints * loyaltyPointValue, currency)})
+              </span>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={redeemPoints}
+                onChange={(e) => handleRedeemToggle(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              Redeem points as discount
+            </label>
+
+            {redeemPoints && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    max={effectiveMaxPoints}
+                    value={pointsToRedeem}
+                    onChange={(e) => handlePointsChange(e.target.value)}
+                    className="w-24"
+                  />
+                  <span className="text-xs text-text-secondary">of {effectiveMaxPoints} max</span>
+                </div>
+                {loyaltyDiscount > 0 && (
+                  <p className="text-xs font-medium text-primary-dark">
+                    Discount: -{formatMoney(loyaltyDiscount, currency)} | Pay: {formatMoney(effectiveTotal, currency)}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 space-y-4">
           {payments.map((entry, idx) => {
@@ -279,22 +397,24 @@ export function CheckoutSheet({
 
         {hasCredit && (
           <div className="mt-4 space-y-3">
-            <div>
-              <Label htmlFor="customer">Customer</Label>
-              <select
-                id="customer"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                className="h-11 w-full rounded-[10px] border border-border bg-surface px-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              >
-                <option value="">Select a customer…</option>
-                {(customers ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!loyaltyEnabled && (
+              <div>
+                <Label htmlFor="customer">Customer</Label>
+                <select
+                  id="customer"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  className="h-11 w-full rounded-[10px] border border-border bg-surface px-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  <option value="">Select a customer...</option>
+                  {(customers ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.phone ? `(${c.phone})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <Label htmlFor="due_date">Due date</Label>
               <Input id="due_date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
@@ -321,7 +441,7 @@ export function CheckoutSheet({
             Cancel
           </Button>
           <Button className="flex-1" size="lg" onClick={handleConfirm} disabled={!canConfirm}>
-            {submitting ? "Recording…" : "Confirm sale"}
+            {submitting ? "Recording..." : "Confirm sale"}
           </Button>
         </div>
       </div>

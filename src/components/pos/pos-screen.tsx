@@ -14,11 +14,15 @@ export function PosScreen({
   locationId,
   currency,
   preventExpiredSale,
+  loyaltyEnabled,
+  loyaltyPointValue,
 }: {
   businessId: string;
   locationId: string;
   currency: string;
   preventExpiredSale: boolean;
+  loyaltyEnabled: boolean;
+  loyaltyPointValue: number;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -302,6 +306,8 @@ export function PosScreen({
           items={cart}
           total={total}
           allowExpired={!preventExpiredSale}
+          loyaltyEnabled={loyaltyEnabled}
+          loyaltyPointValue={loyaltyPointValue}
           onClose={() => setShowCheckout(false)}
           onComplete={handleComplete}
         />

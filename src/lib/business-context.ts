@@ -9,6 +9,9 @@ export interface BusinessContext {
     currency: string;
     prevent_expired_sale: boolean;
     low_stock_default_threshold: number;
+    loyalty_enabled: boolean;
+    loyalty_earn_rate: number;
+    loyalty_point_value: number;
   };
   locationId: string;
   role: BusinessRole;
@@ -25,7 +28,7 @@ export async function getBusinessContext(): Promise<BusinessContext | null> {
 
   const { data: membership } = await supabase
     .from("business_members")
-    .select("role, business_id, businesses(id, name, business_type, currency, prevent_expired_sale, low_stock_default_threshold)")
+    .select("role, business_id, businesses(id, name, business_type, currency, prevent_expired_sale, low_stock_default_threshold, loyalty_enabled, loyalty_earn_rate, loyalty_point_value)")
     .eq("user_id", user.id)
     .eq("active", true)
     .order("created_at", { ascending: true })

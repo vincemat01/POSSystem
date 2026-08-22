@@ -58,6 +58,9 @@ type BusinessRow = {
   phone: string | null;
   prevent_expired_sale: boolean;
   low_stock_default_threshold: number;
+  loyalty_enabled: boolean;
+  loyalty_earn_rate: number;
+  loyalty_point_value: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -151,10 +154,23 @@ type CustomerRow = {
   address: string | null;
   id_reference: string | null;
   notes: string | null;
+  loyalty_points: number;
   status: string;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type LoyaltyTransactionRow = {
+  id: string;
+  business_id: string;
+  customer_id: string;
+  sale_id: string | null;
+  type: string;
+  points: number;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
 };
 
 type CreditAccountRow = {
@@ -483,6 +499,15 @@ export interface Database {
         }
       >;
       expenses: Table<ExpenseRow, Partial<ExpenseRow> & { business_id: string; category: string; amount: number }>;
+      loyalty_transactions: Table<
+        LoyaltyTransactionRow,
+        Partial<LoyaltyTransactionRow> & {
+          business_id: string;
+          customer_id: string;
+          type: string;
+          points: number;
+        }
+      >;
       ai_insights: Table<AiInsightRow, Partial<AiInsightRow> & { business_id: string; title: string; body: string }>;
     };
     Views: {
@@ -515,6 +540,7 @@ export interface Database {
           p_credit_due_date?: string | null;
           p_allow_expired?: boolean;
           p_device_id?: string | null;
+          p_loyalty_points_redeemed?: number;
         };
         Returns: SaleRow;
       };

@@ -18,6 +18,8 @@ export default async function SalePage() {
         locationId={context.locationId}
         currency={context.business.currency}
         preventExpiredSale={context.business.prevent_expired_sale}
+        loyaltyEnabled={context.business.loyalty_enabled}
+        loyaltyPointValue={context.business.loyalty_point_value}
       />
     </div>
   );

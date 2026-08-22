@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
@@ -15,7 +15,7 @@ export default async function CreditPage() {
 
   const { data: customers } = await supabase
     .from("customers")
-    .select("id, name, phone")
+    .select("id, name, phone, loyalty_points")
     .eq("business_id", business.id)
     .eq("status", "active")
     .order("name");
@@ -84,6 +84,11 @@ export default async function CreditPage() {
                       {formatMoney(balance, business.currency)}
                     </p>
                     {overdue && balance > 0 && <p className="text-xs font-medium text-danger">Overdue</p>}
+                    {business.loyalty_enabled && Number(customer.loyalty_points) > 0 && (
+                      <p className="flex items-center justify-end gap-0.5 text-xs text-accent-gold">
+                        <Star className="h-3 w-3" /> {customer.loyalty_points} pts
+                      </p>
+                    )}
                   </div>
                 </Card>
               </Link>

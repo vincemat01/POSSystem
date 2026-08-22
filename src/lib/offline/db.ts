@@ -25,6 +25,7 @@ export interface OfflineCustomer {
   phone: string | null;
   credit_limit: number;
   credit_balance: number;
+  loyalty_points: number;
 }
 
 export type CartItem = {

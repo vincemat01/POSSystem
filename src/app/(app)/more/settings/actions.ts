@@ -13,6 +13,9 @@ const schema = z.object({
   receipt_footer: z.string().trim().optional(),
   low_stock_default_threshold: z.coerce.number().min(0).default(5),
   prevent_expired_sale: z.coerce.boolean().default(false),
+  loyalty_enabled: z.coerce.boolean().default(false),
+  loyalty_earn_rate: z.coerce.number().min(0).default(1),
+  loyalty_point_value: z.coerce.number().min(0).default(0.01),
 });
 
 export interface SettingsFormState {
@@ -28,6 +31,9 @@ export async function updateBusinessSettings(_prevState: SettingsFormState, form
     receipt_footer: formData.get("receipt_footer") || undefined,
     low_stock_default_threshold: formData.get("low_stock_default_threshold") || 5,
     prevent_expired_sale: formData.get("prevent_expired_sale") === "on",
+    loyalty_enabled: formData.get("loyalty_enabled") === "on",
+    loyalty_earn_rate: formData.get("loyalty_earn_rate") || 1,
+    loyalty_point_value: formData.get("loyalty_point_value") || 0.01,
   });
 
   if (!parsed.success) {
@@ -50,6 +56,9 @@ export async function updateBusinessSettings(_prevState: SettingsFormState, form
       receipt_footer: parsed.data.receipt_footer || null,
       low_stock_default_threshold: parsed.data.low_stock_default_threshold,
       prevent_expired_sale: parsed.data.prevent_expired_sale,
+      loyalty_enabled: parsed.data.loyalty_enabled,
+      loyalty_earn_rate: parsed.data.loyalty_earn_rate,
+      loyalty_point_value: parsed.data.loyalty_point_value,
     })
     .eq("id", context.business.id);
 

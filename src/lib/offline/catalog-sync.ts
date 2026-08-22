@@ -15,7 +15,7 @@ export async function syncCatalog(businessId: string, locationId: string) {
       .eq("business_id", businessId)
       .eq("active", true),
     supabase.from("product_stock").select("product_id, quantity_on_hand").eq("business_id", businessId).eq("location_id", locationId),
-    supabase.from("customers").select("id, business_id, name, phone").eq("business_id", businessId).eq("status", "active"),
+    supabase.from("customers").select("id, business_id, name, phone, loyalty_points").eq("business_id", businessId).eq("status", "active"),
     supabase.from("credit_accounts").select("id, customer_id, credit_limit").eq("business_id", businessId),
     supabase.from("categories").select("id, business_id, name").eq("business_id", businessId).order("name"),
   ]);
@@ -50,6 +50,7 @@ export async function syncCatalog(businessId: string, locationId: string) {
         phone: c.phone,
         credit_limit: balancesByCustomer.get(c.id)?.limit ?? 0,
         credit_balance: balanceByCustomer.get(c.id) ?? 0,
+        loyalty_points: Number(c.loyalty_points) || 0,
       })),
     );
   }

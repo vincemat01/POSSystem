@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
@@ -21,6 +21,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
   const supabase = await createClient();
   const { business } = context;
+  const loyaltyEnabled = business.loyalty_enabled;
 
   const { data: customer } = await supabase
     .from("customers")
@@ -56,6 +57,19 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         .limit(50)
     : { data: [] };
 
+  const { data: loyaltyTxns } = loyaltyEnabled
+    ? await supabase
+        .from("loyalty_transactions")
+        .select("id, type, points, description, created_at")
+        .eq("customer_id", customerId)
+        .eq("business_id", business.id)
+        .order("created_at", { ascending: false })
+        .limit(30)
+    : { data: [] };
+
+  const loyaltyPoints = Number(customer.loyalty_points) || 0;
+  const pointValue = business.loyalty_point_value;
+
   return (
     <div className="mx-auto max-w-2xl space-y-4 p-4 md:p-6">
       <Link href="/credit" className="inline-flex items-center gap-1 text-sm text-text-secondary">
@@ -74,6 +88,19 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           <p className="mt-1 text-xs text-text-secondary">Limit: {formatMoney(account.credit_limit, business.currency)}</p>
         )}
       </Card>
+
+      {loyaltyEnabled && (
+        <Card className="bg-gold-light/60 border-accent-gold/30">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-accent-gold" />
+            <p className="text-xs font-medium text-text-secondary">Loyalty points</p>
+          </div>
+          <p className="mt-1 text-2xl font-bold text-primary-dark">{loyaltyPoints}</p>
+          <p className="mt-1 text-xs text-text-secondary">
+            Worth {formatMoney(loyaltyPoints * pointValue, business.currency)} in discounts
+          </p>
+        </Card>
+      )}
 
       {balance > 0 && (
         <Card className="p-5">
@@ -106,6 +133,26 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </div>
         )}
       </div>
+      {loyaltyEnabled && (loyaltyTxns ?? []).length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold">Loyalty history</p>
+          <div className="space-y-2">
+            {(loyaltyTxns ?? []).map((txn) => (
+              <Card key={txn.id} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-medium">
+                    {txn.type === "earned" ? "Points earned" : txn.type === "redeemed" ? "Points redeemed" : "Adjustment"}
+                  </p>
+                  <p className="text-xs text-text-secondary">{formatDate(txn.created_at)}</p>
+                </div>
+                <p className={`text-sm font-semibold ${txn.points > 0 ? "text-primary" : "text-text"}`}>
+                  {txn.points > 0 ? "+" : ""}{txn.points}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
