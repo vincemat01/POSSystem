@@ -15,6 +15,7 @@ const schema = z.object({
   selling_price: z.coerce.number().min(0, "Selling price can't be negative."),
   minimum_stock: z.coerce.number().min(0).default(0),
   tracks_expiry: z.coerce.boolean().default(false),
+  category_id: z.string().uuid().optional(),
 });
 
 export interface ProductFormState {
@@ -22,6 +23,7 @@ export interface ProductFormState {
 }
 
 export async function createProduct(_prevState: ProductFormState, formData: FormData): Promise<ProductFormState> {
+  const categoryId = formData.get("category_id") as string;
   const parsed = schema.safeParse({
     name: formData.get("name"),
     barcode: formData.get("barcode") || undefined,
@@ -31,6 +33,7 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
     selling_price: formData.get("selling_price") || 0,
     minimum_stock: formData.get("minimum_stock") || 0,
     tracks_expiry: formData.get("tracks_expiry") === "on",
+    category_id: categoryId || undefined,
   });
 
   if (!parsed.success) {
@@ -65,6 +68,7 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
     selling_price: parsed.data.selling_price,
     minimum_stock: parsed.data.minimum_stock,
     tracks_expiry: parsed.data.tracks_expiry,
+    category_id: parsed.data.category_id || null,
     image_url: imageUrl,
   });
 
@@ -115,9 +119,11 @@ const updateSchema = z.object({
   cost_price: z.coerce.number().min(0, "Cost price can't be negative."),
   selling_price: z.coerce.number().min(0, "Selling price can't be negative."),
   minimum_stock: z.coerce.number().min(0).default(0),
+  category_id: z.string().uuid().optional(),
 });
 
 export async function updateProduct(_prevState: ProductFormState, formData: FormData): Promise<ProductFormState> {
+  const catId = formData.get("category_id") as string;
   const parsed = updateSchema.safeParse({
     product_id: formData.get("product_id"),
     name: formData.get("name"),
@@ -127,6 +133,7 @@ export async function updateProduct(_prevState: ProductFormState, formData: Form
     cost_price: formData.get("cost_price") || 0,
     selling_price: formData.get("selling_price") || 0,
     minimum_stock: formData.get("minimum_stock") || 0,
+    category_id: catId || undefined,
   });
 
   if (!parsed.success) {
@@ -147,6 +154,7 @@ export async function updateProduct(_prevState: ProductFormState, formData: Form
       cost_price: parsed.data.cost_price,
       selling_price: parsed.data.selling_price,
       minimum_stock: parsed.data.minimum_stock,
+      category_id: parsed.data.category_id || null,
     })
     .eq("id", parsed.data.product_id)
     .eq("business_id", context.business.id);

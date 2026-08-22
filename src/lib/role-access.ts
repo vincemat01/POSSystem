@@ -4,12 +4,12 @@ const ROLE_PERMISSIONS: Record<BusinessRole, Set<string>> = {
   owner: new Set([
     "pos", "sales", "products", "inventory", "stock_take", "suppliers",
     "purchases", "customers", "credit", "expenses", "reports", "expiry",
-    "staff", "settings", "cash_up", "shifts", "profile",
+    "staff", "settings", "categories", "cash_up", "shifts", "profile",
   ]),
   manager: new Set([
     "pos", "sales", "products", "inventory", "stock_take", "suppliers",
     "purchases", "customers", "credit", "expenses", "reports", "expiry",
-    "staff", "cash_up", "shifts", "profile",
+    "staff", "categories", "cash_up", "shifts", "profile",
   ]),
   cashier: new Set([
     "pos", "sales", "customers", "credit", "cash_up", "shifts", "profile",
@@ -40,6 +40,7 @@ const PATH_PERMISSIONS: Record<string, string> = {
   "/more/shifts": "shifts",
   "/more/staff": "staff",
   "/more/profile": "profile",
+  "/more/settings/categories": "categories",
   "/more/settings": "settings",
   "/more/cash-up": "cash_up",
 };
@@ -47,7 +48,9 @@ const PATH_PERMISSIONS: Record<string, string> = {
 export function canAccessPath(role: BusinessRole, pathname: string): boolean {
   if (pathname === "/home" || pathname === "/more") return true;
 
-  for (const [path, permission] of Object.entries(PATH_PERMISSIONS)) {
+  // Sort by path length descending so more-specific paths match before their prefixes
+  const sorted = Object.entries(PATH_PERMISSIONS).sort((a, b) => b[0].length - a[0].length);
+  for (const [path, permission] of sorted) {
     if (pathname === path || pathname.startsWith(`${path}/`)) {
       return hasPermission(role, permission);
     }

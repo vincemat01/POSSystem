@@ -34,6 +34,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     .eq("location_id", locationId)
     .maybeSingle();
 
+  let categoryName: string | null = null;
+  if (product.category_id) {
+    const { data: cat } = await supabase
+      .from("categories")
+      .select("name")
+      .eq("id", product.category_id)
+      .maybeSingle();
+    categoryName = cat?.name ?? null;
+  }
+
   const stock = Number(stockRows?.quantity_on_hand ?? 0);
   const profit = Number(product.selling_price) - Number(product.cost_price);
   const margin = Number(product.selling_price) > 0 ? (profit / Number(product.selling_price)) * 100 : 0;
@@ -59,6 +69,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div>
           <h1 className="text-xl font-bold">{product.name}</h1>
           {product.barcode && <p className="text-xs text-text-secondary">{product.barcode}</p>}
+          {categoryName && (
+            <span className="mt-1 inline-block rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-medium text-primary">
+              {categoryName}
+            </span>
+          )}
         </div>
       </div>
 

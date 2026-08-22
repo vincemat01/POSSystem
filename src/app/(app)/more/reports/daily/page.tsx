@@ -46,14 +46,22 @@ export default async function DailyReportPage({
   const totalRevenue = completedSales.reduce((sum, s) => sum + Number(s.total), 0);
   const saleIds = completedSales.map((s) => s.id);
 
+  const { data: allCategories } = await supabase
+    .from("categories")
+    .select("id, name")
+    .eq("business_id", business.id);
+
+  const categoryNameMap = new Map((allCategories ?? []).map((c) => [c.id, c.name]));
+
   let totalProfit = 0;
   let totalCogs = 0;
   const productSales = new Map<string, { name: string; qty: number; revenue: number; profit: number }>();
+  const categorySales = new Map<string, { name: string; qty: number; revenue: number; profit: number }>();
 
   if (saleIds.length > 0) {
     const { data: items } = await supabase
       .from("sale_items")
-      .select("product_id, quantity, unit_cost, unit_price, line_total, profit, products(name)")
+      .select("product_id, quantity, unit_cost, unit_price, line_total, profit, products(name, category_id)")
       .in("sale_id", saleIds);
 
     for (const item of items ?? []) {
@@ -66,6 +74,15 @@ export default async function DailyReportPage({
       existing.revenue += Number(item.line_total);
       existing.profit += Number(item.profit);
       productSales.set(item.product_id, existing);
+
+      const catId = (product as Record<string, unknown>)?.category_id as string | null;
+      const catKey = catId ?? "__uncategorised";
+      const catName = catId ? (categoryNameMap.get(catId) ?? "Unknown") : "Uncategorised";
+      const catExisting = categorySales.get(catKey) ?? { name: catName, qty: 0, revenue: 0, profit: 0 };
+      catExisting.qty += Number(item.quantity);
+      catExisting.revenue += Number(item.line_total);
+      catExisting.profit += Number(item.profit);
+      categorySales.set(catKey, catExisting);
     }
   }
 
@@ -218,6 +235,28 @@ export default async function DailyReportPage({
                     <p className="text-xs text-text-secondary">{data.count} sale{data.count !== 1 ? "s" : ""}</p>
                   </div>
                   <span className="text-sm font-semibold">{formatMoney(data.total, business.currency)}</span>
+                </Card>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sales by category */}
+      {categorySales.size > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold">Sales by category</p>
+          <div className="space-y-1.5">
+            {[...categorySales.values()]
+              .sort((a, b) => b.revenue - a.revenue)
+              .map((cat) => (
+                <Card key={cat.name} className="flex items-center justify-between py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">{cat.name}</p>
+                    <p className="text-xs text-text-secondary">
+                      {cat.qty} item{cat.qty !== 1 ? "s" : ""} · {formatMoney(cat.profit, business.currency)} profit
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold">{formatMoney(cat.revenue, business.currency)}</span>
                 </Card>
               ))}
           </div>

@@ -10,23 +10,30 @@ import { cn } from "@/lib/utils";
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; filter?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; cat?: string }>;
 }) {
-  const { q, filter } = await searchParams;
+  const { q, filter, cat } = await searchParams;
   const context = await getBusinessContext();
   if (!context) redirect("/onboarding");
 
   const supabase = await createClient();
   const { business, locationId } = context;
 
+  const { data: categories } = await supabase
+    .from("categories")
+    .select("id, name")
+    .eq("business_id", business.id)
+    .order("name");
+
   let query = supabase
     .from("products")
-    .select("id, name, selling_price, unit, minimum_stock, barcode, active, image_url")
+    .select("id, name, selling_price, unit, minimum_stock, barcode, active, image_url, category_id")
     .eq("business_id", business.id)
     .eq("active", true)
     .order("name");
 
   if (q) query = query.ilike("name", `%${q}%`);
+  if (cat) query = query.eq("category_id", cat);
 
   const { data: products } = await query;
 
@@ -37,11 +44,16 @@ export default async function ProductsPage({
     .eq("location_id", locationId);
 
   const stockByProduct = new Map((stockRows ?? []).map((r) => [r.product_id, Number(r.quantity_on_hand)]));
+  const categoryNames = new Map((categories ?? []).map((c) => [c.id, c.name]));
 
   let rows = (products ?? []).map((p) => ({ ...p, stock: stockByProduct.get(p.id) ?? 0 }));
   if (filter === "low_stock") {
     rows = rows.filter((p) => p.minimum_stock > 0 && p.stock <= p.minimum_stock);
   }
+
+  const uncategorisedCount = filter !== "low_stock"
+    ? (products ?? []).filter((p) => !p.category_id).length
+    : rows.filter((p) => !p.category_id).length;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
@@ -63,7 +75,39 @@ export default async function ProductsPage({
           placeholder="Search products…"
           className="h-11 w-full rounded-[10px] border border-border bg-surface pl-10 pr-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         />
+        {filter && <input type="hidden" name="filter" value={filter} />}
+        {cat && <input type="hidden" name="cat" value={cat} />}
       </form>
+
+      {(categories ?? []).length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          <Link
+            href={`/products${filter ? `?filter=${filter}` : ""}${q ? `${filter ? "&" : "?"}q=${q}` : ""}`}
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              !cat
+                ? "bg-primary text-white"
+                : "bg-surface border border-border text-text-secondary hover:border-primary/40",
+            )}
+          >
+            All
+          </Link>
+          {(categories ?? []).map((c) => (
+            <Link
+              key={c.id}
+              href={`/products?cat=${c.id}${filter ? `&filter=${filter}` : ""}${q ? `&q=${q}` : ""}`}
+              className={cn(
+                "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                cat === c.id
+                  ? "bg-primary text-white"
+                  : "bg-surface border border-border text-text-secondary hover:border-primary/40",
+              )}
+            >
+              {c.name}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {filter === "low_stock" && (
         <p className="text-sm text-text-secondary">Showing products at or below their low-stock threshold.</p>
@@ -71,7 +115,7 @@ export default async function ProductsPage({
 
       {rows.length === 0 ? (
         <Card className="py-10 text-center text-sm text-text-secondary">
-          {q ? "No products match your search." : "No products yet. Add your first one to get started."}
+          {q || cat ? "No products match your search." : "No products yet. Add your first one to get started."}
         </Card>
       ) : (
         <div className="space-y-2">
@@ -96,6 +140,9 @@ export default async function ProductsPage({
                     <p className="text-xs text-text-secondary">
                       {product.stock} {product.unit} in stock
                       {product.barcode ? ` · ${product.barcode}` : ""}
+                      {product.category_id && categoryNames.has(product.category_id)
+                        ? ` · ${categoryNames.get(product.category_id)}`
+                        : ""}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ScanBarcode, Camera, ChevronLeft, X } from "lucide-react";
 import { createProduct, type ProductFormState } from "../actions";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { db } from "@/lib/offline/db";
 
 function compressImage(file: File, maxWidth = 800, quality = 0.8): Promise<File> {
   return new Promise((resolve) => {
@@ -38,6 +39,11 @@ export default function NewProductPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    db.categories.toArray().then(setCategories);
+  }, []);
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -106,6 +112,23 @@ export default function NewProductPage() {
             <Label htmlFor="name">Product name</Label>
             <Input id="name" name="name" placeholder="e.g. Coke 500ml" required autoFocus />
           </div>
+
+          {categories.length > 0 && (
+            <div>
+              <Label htmlFor="category_id">Category</Label>
+              <select
+                id="category_id"
+                name="category_id"
+                defaultValue=""
+                className="h-11 w-full rounded-[10px] border border-border bg-surface px-3.5 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
+              >
+                <option value="">No category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

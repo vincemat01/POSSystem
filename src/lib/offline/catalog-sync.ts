@@ -8,7 +8,7 @@ export async function syncCatalog(businessId: string, locationId: string) {
 
   const supabase = createClient();
 
-  const [{ data: products }, { data: stockRows }, { data: customers }, { data: balances }] = await Promise.all([
+  const [{ data: products }, { data: stockRows }, { data: customers }, { data: balances }, { data: categories }] = await Promise.all([
     supabase
       .from("products")
       .select("id, business_id, name, barcode, sku, image_url, unit, cost_price, selling_price, category_id, tracks_expiry, active")
@@ -17,6 +17,7 @@ export async function syncCatalog(businessId: string, locationId: string) {
     supabase.from("product_stock").select("product_id, quantity_on_hand").eq("business_id", businessId).eq("location_id", locationId),
     supabase.from("customers").select("id, business_id, name, phone").eq("business_id", businessId).eq("status", "active"),
     supabase.from("credit_accounts").select("id, customer_id, credit_limit").eq("business_id", businessId),
+    supabase.from("categories").select("id, business_id, name").eq("business_id", businessId).order("name"),
   ]);
 
   if (products) {
@@ -24,6 +25,10 @@ export async function syncCatalog(businessId: string, locationId: string) {
     await db.products.bulkPut(
       products.map((p) => ({ ...p, stock_on_hand: stockByProduct.get(p.id) ?? 0 })),
     );
+  }
+
+  if (categories) {
+    await db.categories.bulkPut(categories);
   }
 
   if (customers) {

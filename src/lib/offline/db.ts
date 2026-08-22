@@ -61,6 +61,12 @@ export interface OutboxItem {
   synced_at: string | null;
 }
 
+export interface OfflineCategory {
+  id: string;
+  business_id: string;
+  name: string;
+}
+
 export interface KeyValue {
   key: string;
   value: string;
@@ -69,6 +75,7 @@ export interface KeyValue {
 class KompassDB extends Dexie {
   products!: EntityTable<OfflineProduct, "id">;
   customers!: EntityTable<OfflineCustomer, "id">;
+  categories!: EntityTable<OfflineCategory, "id">;
   cart!: EntityTable<OpenCart, "id">;
   outbox!: EntityTable<OutboxItem, "client_transaction_id">;
   meta!: EntityTable<KeyValue, "key">;
@@ -78,6 +85,14 @@ class KompassDB extends Dexie {
     this.version(1).stores({
       products: "id, business_id, barcode, sku, category_id, active",
       customers: "id, business_id, name, phone",
+      cart: "id",
+      outbox: "client_transaction_id, business_id, status, created_at",
+      meta: "key",
+    });
+    this.version(2).stores({
+      products: "id, business_id, barcode, sku, category_id, active",
+      customers: "id, business_id, name, phone",
+      categories: "id, business_id",
       cart: "id",
       outbox: "client_transaction_id, business_id, status, created_at",
       meta: "key",

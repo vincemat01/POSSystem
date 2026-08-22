@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { SettingsForm } from "@/components/settings/settings-form";
@@ -24,6 +24,23 @@ export default async function SettingsPage() {
       </Link>
 
       <h1 className="text-xl font-bold">Settings</h1>
+
+      {(context.role === "owner" || context.role === "manager") && (
+        <Link href="/more/settings/categories">
+          <Card className="flex items-center justify-between hover:border-primary/30">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-primary-light">
+                <FolderOpen className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Product Categories</p>
+                <p className="text-xs text-text-secondary">Organise products into groups</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-text-secondary" />
+          </Card>
+        </Link>
+      )}
 
       {context.role !== "owner" ? (
         <Card className="py-8 text-center text-sm text-text-secondary">

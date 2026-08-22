@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import { updateProduct, type ProductFormState } from "@/app/(app)/products/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { db } from "@/lib/offline/db";
 
 interface Product {
   id: string;
@@ -16,11 +17,17 @@ interface Product {
   cost_price: number;
   selling_price: number;
   minimum_stock: number;
+  category_id: string | null;
 }
 
 export function EditProductForm({ product }: { product: Product }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction, pending] = useActionState(updateProduct, {} as ProductFormState);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (editing) db.categories.toArray().then(setCategories);
+  }, [editing]);
 
   if (!editing) {
     return (
@@ -48,6 +55,24 @@ export function EditProductForm({ product }: { product: Product }) {
           <Label htmlFor="edit_name">Product name</Label>
           <Input id="edit_name" name="name" defaultValue={product.name} required />
         </div>
+
+        {categories.length > 0 && (
+          <div>
+            <Label htmlFor="edit_category">Category</Label>
+            <select
+              id="edit_category"
+              name="category_id"
+              defaultValue={product.category_id ?? ""}
+              className="h-11 w-full rounded-[10px] border border-border bg-surface px-3.5 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary"
+            >
+              <option value="">No category</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="edit_barcode">Barcode</Label>

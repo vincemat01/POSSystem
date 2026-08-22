@@ -27,15 +27,32 @@ export function PosScreen({
   const [confirmed, setConfirmed] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [discountOpen, setDiscountOpen] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const categories = useLiveQuery(
+    () => db.categories.where("business_id").equals(businessId).sortBy("name"),
+    [businessId],
+  );
 
   const products = useLiveQuery(async () => {
-    const all = await db.products.where("business_id").equals(businessId).and((p) => p.active).toArray();
-    if (!search) return all.slice(0, 50);
-    const term = search.toLowerCase();
-    return all
-      .filter((p) => p.name.toLowerCase().includes(term) || p.barcode === search || p.sku === search)
-      .slice(0, 50);
-  }, [businessId, search]);
+    let query = db.products.where("business_id").equals(businessId).and((p) => p.active);
+
+    const all = await query.toArray();
+
+    let filtered = all;
+    if (selectedCategory) {
+      filtered = filtered.filter((p) => p.category_id === selectedCategory);
+    }
+
+    if (search) {
+      const term = search.toLowerCase();
+      filtered = filtered.filter(
+        (p) => p.name.toLowerCase().includes(term) || p.barcode === search || p.sku === search,
+      );
+    }
+
+    return filtered.slice(0, 50);
+  }, [businessId, search, selectedCategory]);
 
   useEffect(() => {
     db.cart.get("current").then((saved) => {
@@ -100,8 +117,6 @@ export function PosScreen({
       return;
     }
 
-    // Offline: the sale isn't queryable yet (still just a local outbox entry), so there's no
-    // receipt to show — just confirm it was captured and will sync later.
     setConfirmed(true);
     setTimeout(() => setConfirmed(false), 2500);
   }
@@ -130,12 +145,44 @@ export function PosScreen({
             <ScanBarcode className="h-5 w-5" />
           </button>
         </div>
+
+        {categories && categories.length > 0 && (
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(null)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                selectedCategory === null
+                  ? "bg-primary text-white"
+                  : "border border-border bg-surface text-text-secondary"
+              }`}
+            >
+              All
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedCategory(selectedCategory === c.id ? null : c.id)}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  selectedCategory === c.id
+                    ? "bg-primary text-white"
+                    : "border border-border bg-surface text-text-secondary"
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-40">
         {!products || products.length === 0 ? (
           <p className="py-10 text-center text-sm text-text-secondary">
-            {search ? "No products match." : "No products cached yet — connect to the internet once to sync your catalog."}
+            {search || selectedCategory
+              ? "No products match."
+              : "No products cached yet — connect to the internet once to sync your catalog."}
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
