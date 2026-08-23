@@ -213,6 +213,8 @@ type SaleRow = {
   status: SaleStatus;
   client_transaction_id: string;
   device_id: string | null;
+  void_reason: string | null;
+  voided_at: string | null;
   sold_at: string;
   synced_at: string | null;
   created_at: string;
@@ -616,6 +618,14 @@ export interface Database {
           p_client_transaction_id: string;
         };
         Returns: ReturnRow;
+      };
+      void_sale: {
+        Args: {
+          p_business_id: string;
+          p_sale_id: string;
+          p_reason?: string | null;
+        };
+        Returns: SaleRow;
       };
     };
   };

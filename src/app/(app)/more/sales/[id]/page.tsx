@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, RotateCcw } from "lucide-react";
+import { ChevronLeft, RotateCcw, Ban } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
@@ -114,6 +114,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
   };
 
   const canReturn = sale.status === "completed" || sale.status === "partially_refunded";
+  const canVoid = sale.status === "completed" && (context.role === "owner" || context.role === "manager");
 
   return (
     <div className="mx-auto max-w-md space-y-4 p-4 md:p-6 print:max-w-full">
@@ -136,6 +137,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           )}
           {sale.status !== "completed" && (
             <p className="mt-1 text-xs font-semibold uppercase text-warning">{sale.status.replace("_", " ")}</p>
+          )}
+          {sale.status === "voided" && sale.void_reason && (
+            <p className="mt-0.5 text-xs text-text-secondary">Reason: {sale.void_reason}</p>
           )}
         </div>
 
@@ -249,6 +253,15 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           <Button variant="secondary" className="w-full gap-2">
             <RotateCcw className="h-4 w-4" />
             Return Items
+          </Button>
+        </Link>
+      )}
+
+      {canVoid && (
+        <Link href={`/more/sales/${sale.id}/void`} className="block print:hidden">
+          <Button variant="danger" className="w-full gap-2">
+            <Ban className="h-4 w-4" />
+            Void Sale
           </Button>
         </Link>
       )}
