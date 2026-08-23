@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { db } from "@/lib/offline/db";
+import { suggestPrice, type PricingMethod, type PricingRounding } from "@/lib/pricing";
+import { formatMoney } from "@/lib/utils";
 
 interface Product {
   id: string;
@@ -21,14 +23,26 @@ interface Product {
   tax_exempt: boolean;
 }
 
-export function EditProductForm({ product }: { product: Product }) {
+export function EditProductForm({
+  product,
+  currency,
+  pricing,
+}: {
+  product: Product;
+  currency: string;
+  pricing: { method: PricingMethod; targetPercent: number; rounding: PricingRounding };
+}) {
   const [editing, setEditing] = useState(false);
   const [state, formAction, pending] = useActionState(updateProduct, {} as ProductFormState);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [costPrice, setCostPrice] = useState(String(product.cost_price));
+  const [sellingPrice, setSellingPrice] = useState(String(product.selling_price));
 
   useEffect(() => {
     if (editing) db.categories.toArray().then(setCategories);
   }, [editing]);
+
+  const suggested = suggestPrice(Number(costPrice) || 0, pricing.method, pricing.targetPercent, pricing.rounding);
 
   if (!editing) {
     return (
@@ -87,13 +101,45 @@ export function EditProductForm({ product }: { product: Product }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="edit_cost">Cost price</Label>
-            <Input id="edit_cost" name="cost_price" type="number" step="0.01" min="0" defaultValue={product.cost_price} required />
+            <Input
+              id="edit_cost"
+              name="cost_price"
+              type="number"
+              step="0.01"
+              min="0"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              required
+            />
           </div>
           <div>
             <Label htmlFor="edit_sell">Selling price</Label>
-            <Input id="edit_sell" name="selling_price" type="number" step="0.01" min="0" defaultValue={product.selling_price} required />
+            <Input
+              id="edit_sell"
+              name="selling_price"
+              type="number"
+              step="0.01"
+              min="0"
+              value={sellingPrice}
+              onChange={(e) => setSellingPrice(e.target.value)}
+              required
+            />
           </div>
         </div>
+
+        {suggested !== null && (
+          <p className="-mt-2 text-xs text-text-secondary">
+            Suggested price: {formatMoney(suggested, currency)}{" "}
+            <button
+              type="button"
+              onClick={() => setSellingPrice(suggested.toFixed(2))}
+              className="font-medium text-primary underline"
+            >
+              Use this
+            </button>
+          </p>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="edit_unit">Unit</Label>

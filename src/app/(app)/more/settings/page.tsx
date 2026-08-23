@@ -13,7 +13,7 @@ export default async function SettingsPage() {
   const supabase = await createClient();
   const { data: business } = await supabase
     .from("businesses")
-    .select("name, phone, address, receipt_footer, low_stock_default_threshold, prevent_expired_sale, loyalty_enabled, loyalty_earn_rate, loyalty_point_value, tax_rate, tax_inclusive")
+    .select("name, phone, address, receipt_footer, low_stock_default_threshold, prevent_expired_sale, loyalty_enabled, loyalty_earn_rate, loyalty_point_value, tax_rate, tax_inclusive, pricing_method, pricing_target_percent, pricing_rounding")
     .eq("id", context.business.id)
     .single();
 

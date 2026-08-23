@@ -14,6 +14,9 @@ export interface BusinessContext {
     loyalty_point_value: number;
     tax_rate: number;
     tax_inclusive: boolean;
+    pricing_method: "markup" | "margin";
+    pricing_target_percent: number;
+    pricing_rounding: "none" | "nearest_1" | "nearest_0_50" | "charm_99";
   };
   locationId: string;
   role: BusinessRole;
@@ -30,7 +33,7 @@ export async function getBusinessContext(): Promise<BusinessContext | null> {
 
   const { data: membership } = await supabase
     .from("business_members")
-    .select("role, business_id, businesses(id, name, business_type, currency, prevent_expired_sale, low_stock_default_threshold, loyalty_enabled, loyalty_earn_rate, loyalty_point_value, tax_rate, tax_inclusive)")
+    .select("role, business_id, businesses(id, name, business_type, currency, prevent_expired_sale, low_stock_default_threshold, loyalty_enabled, loyalty_earn_rate, loyalty_point_value, tax_rate, tax_inclusive, pricing_method, pricing_target_percent, pricing_rounding)")
     .eq("user_id", user.id)
     .eq("active", true)
     .order("created_at", { ascending: true })

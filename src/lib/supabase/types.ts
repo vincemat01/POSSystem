@@ -63,6 +63,9 @@ type BusinessRow = {
   loyalty_point_value: number;
   tax_rate: number;
   tax_inclusive: boolean;
+  pricing_method: "markup" | "margin";
+  pricing_target_percent: number;
+  pricing_rounding: "none" | "nearest_1" | "nearest_0_50" | "charm_99";
   created_by: string;
   created_at: string;
   updated_at: string;

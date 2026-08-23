@@ -5,6 +5,7 @@ import { updateBusinessSettings, type SettingsFormState } from "@/app/(app)/more
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { suggestPrice, type PricingMethod, type PricingRounding } from "@/lib/pricing";
 
 const initialState: SettingsFormState = {};
 
@@ -23,11 +24,20 @@ export function SettingsForm({
     loyalty_point_value: number;
     tax_rate: number;
     tax_inclusive: boolean;
+    pricing_method: PricingMethod;
+    pricing_target_percent: number;
+    pricing_rounding: PricingRounding;
   };
 }) {
   const [state, formAction, pending] = useActionState(updateBusinessSettings, initialState);
   const [loyaltyOn, setLoyaltyOn] = useState(business.loyalty_enabled);
   const [taxRate, setTaxRate] = useState(String(business.tax_rate));
+  const [pricingMethod, setPricingMethod] = useState<PricingMethod>(business.pricing_method);
+  const [pricingTarget, setPricingTarget] = useState(String(business.pricing_target_percent));
+  const [pricingRounding, setPricingRounding] = useState<PricingRounding>(business.pricing_rounding);
+
+  const exampleCost = 10;
+  const examplePrice = suggestPrice(exampleCost, pricingMethod, Number(pricingTarget) || 0, pricingRounding);
 
   return (
     <Card className="p-5">
@@ -98,6 +108,64 @@ export function SettingsForm({
               Prices already include tax
             </label>
           )}
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <p className="mb-3 text-sm font-semibold">Selling Price Suggestions</p>
+          <p className="mb-3 text-xs text-text-secondary">
+            Used to suggest a selling price from cost price on the product forms. Always a plain
+            calculation, never a market estimate — you can override any suggestion.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="pricing_method">Method</Label>
+              <select
+                id="pricing_method"
+                name="pricing_method"
+                value={pricingMethod}
+                onChange={(e) => setPricingMethod(e.target.value as PricingMethod)}
+                className="h-11 w-full rounded-[10px] border border-border bg-surface px-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <option value="markup">Markup on cost</option>
+                <option value="margin">Margin on price</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="pricing_target_percent">Target %</Label>
+              <Input
+                id="pricing_target_percent"
+                name="pricing_target_percent"
+                type="number"
+                step="0.01"
+                min="0"
+                max={pricingMethod === "margin" ? "99.99" : undefined}
+                value={pricingTarget}
+                onChange={(e) => setPricingTarget(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <Label htmlFor="pricing_rounding">Rounding</Label>
+            <select
+              id="pricing_rounding"
+              name="pricing_rounding"
+              value={pricingRounding}
+              onChange={(e) => setPricingRounding(e.target.value as PricingRounding)}
+              className="h-11 w-full rounded-[10px] border border-border bg-surface px-3.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              <option value="none">Exact (2 decimals)</option>
+              <option value="nearest_1">Nearest whole number</option>
+              <option value="nearest_0_50">Nearest 0.50</option>
+              <option value="charm_99">Charm pricing (X.99)</option>
+            </select>
+          </div>
+
+          <p className="mt-2 text-xs text-text-secondary">
+            Example: cost {exampleCost.toFixed(2)} → suggested price{" "}
+            {examplePrice !== null ? examplePrice.toFixed(2) : "—"}
+          </p>
         </div>
 
         <div className="border-t border-border pt-4">

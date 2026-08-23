@@ -102,7 +102,15 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </Card>
       </div>
 
-      <EditProductForm product={product} />
+      <EditProductForm
+        product={product}
+        currency={business.currency}
+        pricing={{
+          method: context.business.pricing_method,
+          targetPercent: context.business.pricing_target_percent,
+          rounding: context.business.pricing_rounding,
+        }}
+      />
 
       <AdjustStockForm productId={product.id} tracksExpiry={product.tracks_expiry} />
 

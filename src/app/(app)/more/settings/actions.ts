@@ -18,6 +18,9 @@ const schema = z.object({
   loyalty_point_value: z.coerce.number().min(0).default(0.01),
   tax_rate: z.coerce.number().min(0).max(100).default(0),
   tax_inclusive: z.coerce.boolean().default(true),
+  pricing_method: z.enum(["markup", "margin"]).default("markup"),
+  pricing_target_percent: z.coerce.number().min(0).max(1000).default(30),
+  pricing_rounding: z.enum(["none", "nearest_1", "nearest_0_50", "charm_99"]).default("none"),
 });
 
 export interface SettingsFormState {
@@ -38,6 +41,9 @@ export async function updateBusinessSettings(_prevState: SettingsFormState, form
     loyalty_point_value: formData.get("loyalty_point_value") || 0.01,
     tax_rate: formData.get("tax_rate") || 0,
     tax_inclusive: formData.get("tax_inclusive") === "on",
+    pricing_method: formData.get("pricing_method") || "markup",
+    pricing_target_percent: formData.get("pricing_target_percent") || 30,
+    pricing_rounding: formData.get("pricing_rounding") || "none",
   });
 
   if (!parsed.success) {
@@ -65,6 +71,9 @@ export async function updateBusinessSettings(_prevState: SettingsFormState, form
       loyalty_point_value: parsed.data.loyalty_point_value,
       tax_rate: parsed.data.tax_rate,
       tax_inclusive: parsed.data.tax_inclusive,
+      pricing_method: parsed.data.pricing_method,
+      pricing_target_percent: parsed.data.pricing_target_percent,
+      pricing_rounding: parsed.data.pricing_rounding,
     })
     .eq("id", context.business.id);
 
