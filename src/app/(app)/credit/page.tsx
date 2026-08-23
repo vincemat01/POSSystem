@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus, Star } from "lucide-react";
+import { Plus, Star, Bell } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
 import { Card } from "@/components/ui/card";
@@ -36,6 +36,17 @@ export default async function CreditPage() {
     .lt("due_date", today);
   const overdueAccountIds = new Set((overdueSales ?? []).map((t) => t.credit_account_id));
 
+  const in7Days = new Date();
+  in7Days.setDate(in7Days.getDate() + 7);
+  const { data: dueSoonSales } = await supabase
+    .from("credit_transactions")
+    .select("credit_account_id")
+    .eq("business_id", business.id)
+    .eq("type", "credit_sale")
+    .gte("due_date", today)
+    .lte("due_date", in7Days.toISOString().slice(0, 10));
+  const dueSoonAccountIds = new Set((dueSoonSales ?? []).map((t) => t.credit_account_id));
+
   const { data: accounts } = await supabase
     .from("credit_accounts")
     .select("id, customer_id")
@@ -44,16 +55,31 @@ export default async function CreditPage() {
 
   const totalOwed = (balances ?? []).reduce((sum, b) => sum + Number(b.balance), 0);
   const owingCustomers = (customers ?? []).filter((c) => (balanceByCustomer.get(c.id) ?? 0) > 0);
+  const reminderCount = owingCustomers.filter((c) => {
+    const accountId = accountByCustomer.get(c.id);
+    return accountId && (overdueAccountIds.has(accountId) || dueSoonAccountIds.has(accountId));
+  }).length;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 p-4 md:p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Credit Book</h1>
-        <Link href="/credit/new">
-          <span className="inline-flex h-11 items-center gap-1.5 rounded-[10px] bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-dark">
-            <Plus className="h-4 w-4" /> Customer
-          </span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {reminderCount > 0 && (
+            <Link
+              href="/credit/reminders"
+              className="inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-border bg-surface px-3.5 text-sm font-medium text-text hover:border-primary/40"
+            >
+              <Bell className="h-4 w-4" />
+              Reminders <span className="rounded-full bg-danger px-1.5 py-0.5 text-xs font-semibold text-white">{reminderCount}</span>
+            </Link>
+          )}
+          <Link href="/credit/new">
+            <span className="inline-flex h-11 items-center gap-1.5 rounded-[10px] bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-dark">
+              <Plus className="h-4 w-4" /> Customer
+            </span>
+          </Link>
+        </div>
       </div>
 
       <Card className="bg-primary-light/60 border-primary/20">
