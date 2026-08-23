@@ -372,6 +372,19 @@ type ReturnItemRow = {
   unit_price: number;
 };
 
+type AuditLogRow = {
+  id: string;
+  business_id: string;
+  user_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  old_value: unknown;
+  new_value: unknown;
+  location_id: string | null;
+  created_at: string;
+};
+
 type AiInsightRow = {
   id: string;
   business_id: string;
@@ -512,6 +525,10 @@ export interface Database {
         }
       >;
       ai_insights: Table<AiInsightRow, Partial<AiInsightRow> & { business_id: string; title: string; body: string }>;
+      audit_logs: Table<
+        AuditLogRow,
+        Partial<AuditLogRow> & { business_id: string; action: string; entity_type: string }
+      >;
     };
     Views: {
       product_stock: View<{ business_id: string; product_id: string; location_id: string; quantity_on_hand: number }>;

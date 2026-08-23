@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
+import { logAuditEvent } from "@/lib/audit";
 import type { PaymentMethod } from "@/lib/supabase/types";
 
 const customerSchema = z.object({
@@ -95,6 +96,16 @@ export async function recordPayment(_prevState: PaymentFormState, formData: Form
   if (error) {
     return { error: "We couldn't record that payment. Please try again." };
   }
+
+  await logAuditEvent(supabase, {
+    businessId: context.business.id,
+    userId: context.userId,
+    locationId: context.locationId,
+    action: "credit.payment_recorded",
+    entityType: "customer",
+    entityId: parsed.data.customer_id,
+    newValue: { amount: parsed.data.amount, method: parsed.data.method },
+  });
 
   revalidatePath(`/credit/${parsed.data.customer_id}`);
   revalidatePath("/credit");

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
+import { logAuditEvent } from "@/lib/audit";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Enter a product name."),
@@ -149,6 +150,13 @@ export async function updateProduct(_prevState: ProductFormState, formData: Form
   if (!context) redirect("/onboarding");
 
   const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("products")
+    .select("cost_price, selling_price")
+    .eq("id", parsed.data.product_id)
+    .eq("business_id", context.business.id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("products")
     .update({
@@ -167,6 +175,22 @@ export async function updateProduct(_prevState: ProductFormState, formData: Form
 
   if (error) {
     return { error: "We couldn't update that product. Please try again." };
+  }
+
+  if (
+    existing &&
+    (Number(existing.cost_price) !== parsed.data.cost_price || Number(existing.selling_price) !== parsed.data.selling_price)
+  ) {
+    await logAuditEvent(supabase, {
+      businessId: context.business.id,
+      userId: context.userId,
+      locationId: context.locationId,
+      action: "product.price_changed",
+      entityType: "product",
+      entityId: parsed.data.product_id,
+      oldValue: { cost_price: existing.cost_price, selling_price: existing.selling_price },
+      newValue: { cost_price: parsed.data.cost_price, selling_price: parsed.data.selling_price },
+    });
   }
 
   revalidatePath(`/products/${parsed.data.product_id}`);
@@ -257,6 +281,16 @@ export async function adjustStock(_prevState: AdjustStockState, formData: FormDa
     if (movementError) {
       return { error: "We couldn't save that stock adjustment. Please try again." };
     }
+
+    await logAuditEvent(supabase, {
+      businessId: context.business.id,
+      userId: context.userId,
+      locationId: context.locationId,
+      action: "product.stock_adjusted",
+      entityType: "product",
+      entityId: product.id,
+      newValue: { quantity, reason: parsed.data.reason || null, expiry_date: parsed.data.expiry_date || null },
+    });
   } else {
     if (quantity < 0) {
       const { data: stockRow } = await supabase
@@ -286,6 +320,16 @@ export async function adjustStock(_prevState: AdjustStockState, formData: FormDa
     if (movementError) {
       return { error: "We couldn't save that stock adjustment. Please try again." };
     }
+
+    await logAuditEvent(supabase, {
+      businessId: context.business.id,
+      userId: context.userId,
+      locationId: context.locationId,
+      action: "product.stock_adjusted",
+      entityType: "product",
+      entityId: product.id,
+      newValue: { quantity, reason: parsed.data.reason || null },
+    });
   }
 
   revalidatePath(`/products/${parsed.data.product_id}`);

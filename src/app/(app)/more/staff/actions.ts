@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessContext } from "@/lib/business-context";
+import { logAuditEvent } from "@/lib/audit";
 import type { BusinessRole } from "@/lib/supabase/types";
 
 function generateCode(): string {
@@ -77,6 +78,13 @@ export async function updateMemberRole(_prev: UpdateRoleState, formData: FormDat
   }
 
   const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("business_members")
+    .select("role")
+    .eq("id", parsed.data.member_id)
+    .eq("business_id", context.business.id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("business_members")
     .update({ role: parsed.data.role as BusinessRole })
@@ -84,6 +92,18 @@ export async function updateMemberRole(_prev: UpdateRoleState, formData: FormDat
     .eq("business_id", context.business.id);
 
   if (error) return { error: "Could not update role." };
+
+  if (existing && existing.role !== parsed.data.role) {
+    await logAuditEvent(supabase, {
+      businessId: context.business.id,
+      userId: context.userId,
+      action: "staff.role_changed",
+      entityType: "business_member",
+      entityId: parsed.data.member_id,
+      oldValue: { role: existing.role },
+      newValue: { role: parsed.data.role },
+    });
+  }
 
   revalidatePath("/more/staff");
   return { success: true };
@@ -105,6 +125,16 @@ export async function removeMember(memberId: string): Promise<{ error?: string }
     .neq("user_id", context.userId);
 
   if (error) return { error: "Could not remove member." };
+
+  await logAuditEvent(supabase, {
+    businessId: context.business.id,
+    userId: context.userId,
+    action: "staff.removed",
+    entityType: "business_member",
+    entityId: memberId,
+    oldValue: { active: true },
+    newValue: { active: false },
+  });
 
   revalidatePath("/more/staff");
   return {};
