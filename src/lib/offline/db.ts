@@ -14,6 +14,7 @@ export interface OfflineProduct {
   selling_price: number;
   category_id: string | null;
   tracks_expiry: boolean;
+  tax_exempt: boolean;
   active: boolean;
   stock_on_hand: number;
 }
@@ -34,6 +35,7 @@ export type CartItem = {
   unit_price: number;
   quantity: number;
   discount: number;
+  tax_exempt: boolean;
 };
 
 export interface OpenCart {

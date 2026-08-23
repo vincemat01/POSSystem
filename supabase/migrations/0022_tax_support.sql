@@ -1,44 +1,17 @@
--- Kompass POS — Customer Loyalty Programme
--- Customers earn points on purchases and redeem them as discounts at checkout.
+-- Kompass POS — Tax/VAT support
+-- Businesses can configure a tax rate. Prices can be tax-inclusive (default, common in SA)
+-- or tax-exclusive. Individual products can be marked tax-exempt (zero-rated).
 
--- Add loyalty settings to businesses
 alter table businesses
-  add column loyalty_enabled boolean not null default false,
-  add column loyalty_earn_rate numeric(8, 2) not null default 1,
-  add column loyalty_point_value numeric(8, 4) not null default 0.01;
+  add column tax_rate numeric(5, 2) not null default 0,
+  add column tax_inclusive boolean not null default true;
 
--- Add loyalty points balance to customers (updated transactionally; loyalty_transactions is the audit log)
-alter table customers
-  add column loyalty_points integer not null default 0;
+alter table products
+  add column tax_exempt boolean not null default false;
 
--- Loyalty transaction log
-create table loyalty_transactions (
-  id uuid primary key default gen_random_uuid(),
-  business_id uuid not null references businesses (id) on delete cascade,
-  customer_id uuid not null references customers (id) on delete cascade,
-  sale_id uuid references sales (id),
-  type text not null check (type in ('earned', 'redeemed', 'adjustment')),
-  points integer not null,
-  description text,
-  created_by uuid references auth.users (id),
-  created_at timestamptz not null default now()
-);
-
-create index idx_loyalty_txn_customer on loyalty_transactions (customer_id, created_at desc);
-create index idx_loyalty_txn_business on loyalty_transactions (business_id, created_at desc);
-
--- RLS
-alter table loyalty_transactions enable row level security;
-
-create policy loyalty_transactions_select on loyalty_transactions
-  for select using (is_business_member(business_id));
-
-create policy loyalty_transactions_insert on loyalty_transactions
-  for insert with check (is_business_member(business_id));
-
--- Update record_sale to handle loyalty points (earn + redeem)
--- Drop the prior 9-parameter signature first — adding a new parameter to a security definer
--- function creates a second overload instead of replacing it, which leaves calls ambiguous.
+-- Update record_sale to calculate and store tax_total
+-- Drop the prior 9-parameter signature defensively — if this migration runs on a database where
+-- 0021's ambiguous overload was never cleaned up, this removes it so only one signature remains.
 drop function if exists record_sale(uuid, uuid, uuid, jsonb, jsonb, uuid, date, boolean, text);
 
 create or replace function record_sale(
@@ -81,6 +54,10 @@ declare
   v_loyalty_discount numeric := 0;
   v_current_points integer;
   v_earned_points integer;
+  v_tax_rate numeric;
+  v_tax_inclusive boolean;
+  v_tax_total numeric := 0;
+  v_line_total numeric;
 begin
   if not is_business_member(p_business_id) then
     raise exception 'Not a member of this business' using errcode = '42501';
@@ -92,6 +69,11 @@ begin
     return v_sale;
   end if;
 
+  -- Load business settings
+  select tax_rate, tax_inclusive, loyalty_enabled, loyalty_earn_rate, loyalty_point_value
+  into v_tax_rate, v_tax_inclusive, v_loyalty_enabled, v_earn_rate, v_point_value
+  from businesses where id = p_business_id;
+
   for v_item in select * from jsonb_array_elements(p_items)
   loop
     v_subtotal := v_subtotal + (v_item->>'quantity')::numeric * (v_item->>'unit_price')::numeric;
@@ -100,10 +82,6 @@ begin
 
   -- Apply loyalty discount before inserting the sale
   if p_loyalty_points_redeemed > 0 and p_customer_id is not null then
-    select loyalty_enabled, loyalty_earn_rate, loyalty_point_value
-    into v_loyalty_enabled, v_earn_rate, v_point_value
-    from businesses where id = p_business_id;
-
     if not v_loyalty_enabled then
       raise exception 'Loyalty programme is not enabled' using errcode = 'P0001';
     end if;
@@ -192,7 +170,29 @@ begin
       (v_item->>'unit_price')::numeric, coalesce((v_item->>'discount')::numeric, 0)
     )
     returning id into v_sale_item_id;
+
+    -- Calculate tax for this line item
+    if v_tax_rate > 0 and not v_product.tax_exempt then
+      v_line_total := v_line_qty * (v_item->>'unit_price')::numeric - coalesce((v_item->>'discount')::numeric, 0);
+      if v_tax_inclusive then
+        v_tax_total := v_tax_total + round(v_line_total - (v_line_total / (1 + v_tax_rate / 100)), 2);
+      else
+        v_tax_total := v_tax_total + round(v_line_total * v_tax_rate / 100, 2);
+      end if;
+    end if;
   end loop;
+
+  -- For tax-exclusive: add tax to the sale total
+  if v_tax_rate > 0 and not v_tax_inclusive and v_tax_total > 0 then
+    update sales set
+      tax_total = v_tax_total,
+      total = total + v_tax_total
+    where id = v_sale.id
+    returning * into v_sale;
+  elsif v_tax_total > 0 then
+    update sales set tax_total = v_tax_total where id = v_sale.id;
+    v_sale.tax_total := v_tax_total;
+  end if;
 
   for v_payment in select * from jsonb_array_elements(p_payments)
   loop
@@ -231,34 +231,26 @@ begin
   end if;
 
   -- Loyalty programme: redeem and earn
-  if p_customer_id is not null then
-    if not v_loyalty_enabled then
-      select loyalty_enabled, loyalty_earn_rate, loyalty_point_value
-      into v_loyalty_enabled, v_earn_rate, v_point_value
-      from businesses where id = p_business_id;
+  if p_customer_id is not null and v_loyalty_enabled then
+    -- Record redemption
+    if p_loyalty_points_redeemed > 0 then
+      update customers set loyalty_points = loyalty_points - p_loyalty_points_redeemed
+      where id = p_customer_id;
+
+      insert into loyalty_transactions (business_id, customer_id, sale_id, type, points, description, created_by)
+      values (p_business_id, p_customer_id, v_sale.id, 'redeemed', -p_loyalty_points_redeemed,
+              'Points redeemed at checkout', auth.uid());
     end if;
 
-    if v_loyalty_enabled then
-      -- Record redemption
-      if p_loyalty_points_redeemed > 0 then
-        update customers set loyalty_points = loyalty_points - p_loyalty_points_redeemed
-        where id = p_customer_id;
+    -- Earn points on the final sale total
+    v_earned_points := floor(v_sale.total * v_earn_rate)::integer;
+    if v_earned_points > 0 then
+      update customers set loyalty_points = loyalty_points + v_earned_points
+      where id = p_customer_id;
 
-        insert into loyalty_transactions (business_id, customer_id, sale_id, type, points, description, created_by)
-        values (p_business_id, p_customer_id, v_sale.id, 'redeemed', -p_loyalty_points_redeemed,
-                'Points redeemed at checkout', auth.uid());
-      end if;
-
-      -- Earn points on the final sale total
-      v_earned_points := floor(v_sale.total * v_earn_rate)::integer;
-      if v_earned_points > 0 then
-        update customers set loyalty_points = loyalty_points + v_earned_points
-        where id = p_customer_id;
-
-        insert into loyalty_transactions (business_id, customer_id, sale_id, type, points, description, created_by)
-        values (p_business_id, p_customer_id, v_sale.id, 'earned', v_earned_points,
-                'Points earned from purchase', auth.uid());
-      end if;
+      insert into loyalty_transactions (business_id, customer_id, sale_id, type, points, description, created_by)
+      values (p_business_id, p_customer_id, v_sale.id, 'earned', v_earned_points,
+              'Points earned from purchase', auth.uid());
     end if;
   end if;
 

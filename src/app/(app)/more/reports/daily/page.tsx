@@ -36,7 +36,7 @@ export default async function DailyReportPage({
 
   const { data: sales } = await supabase
     .from("sales")
-    .select("id, sale_number, total, status, sold_at, cashier_id, customer_id")
+    .select("id, sale_number, total, tax_total, status, sold_at, cashier_id, customer_id")
     .eq("business_id", business.id)
     .gte("sold_at", start)
     .lte("sold_at", end)
@@ -44,6 +44,7 @@ export default async function DailyReportPage({
 
   const completedSales = (sales ?? []).filter((s) => s.status === "completed");
   const totalRevenue = completedSales.reduce((sum, s) => sum + Number(s.total), 0);
+  const totalTax = completedSales.reduce((sum, s) => sum + Number(s.tax_total), 0);
   const saleIds = completedSales.map((s) => s.id);
 
   const { data: allCategories } = await supabase
@@ -200,6 +201,12 @@ export default async function DailyReportPage({
           <p className="text-xs font-medium text-text-secondary">Expenses</p>
           <p className="mt-1 text-xl font-bold">{formatMoney(totalExpenses, business.currency)}</p>
         </Card>
+        {totalTax > 0 && (
+          <Card>
+            <p className="text-xs font-medium text-text-secondary">Tax collected</p>
+            <p className="mt-1 text-xl font-bold">{formatMoney(totalTax, business.currency)}</p>
+          </Card>
+        )}
       </div>
 
       {/* Payment breakdown */}

@@ -174,6 +174,11 @@ export default function NewProductPage() {
             This product has an expiry date (tracked per batch)
           </label>
 
+          <label className="flex items-center gap-2 text-sm text-text">
+            <input type="checkbox" name="tax_exempt" className="h-4 w-4 rounded border-border" />
+            This product is tax-exempt (zero-rated)
+          </label>
+
           {state.error && (
             <p className="rounded-[10px] bg-danger-light px-3 py-2 text-sm text-danger">{state.error}</p>
           )}

@@ -61,6 +61,8 @@ type BusinessRow = {
   loyalty_enabled: boolean;
   loyalty_earn_rate: number;
   loyalty_point_value: number;
+  tax_rate: number;
+  tax_inclusive: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -141,6 +143,7 @@ type ProductRow = {
   selling_price: number;
   minimum_stock: number;
   tracks_expiry: boolean;
+  tax_exempt: boolean;
   active: boolean;
   created_at: string;
   updated_at: string;

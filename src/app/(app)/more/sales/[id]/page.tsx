@@ -175,6 +175,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
               <span>−{formatMoney(sale.discount_total, business.currency)}</span>
             </div>
           )}
+          {sale.tax_total > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-secondary">Tax</span>
+              <span>{formatMoney(sale.tax_total, business.currency)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between text-base font-bold">
             <span>Total</span>
             <span>{formatMoney(sale.total, business.currency)}</span>
@@ -276,6 +282,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     if (s.discount_total > 0) {
       lines.push(`Subtotal: ${formatMoney(s.subtotal, business.currency)}`);
       lines.push(`Discount: -${formatMoney(s.discount_total, business.currency)}`);
+    }
+    if (s.tax_total > 0) {
+      lines.push(`Tax: ${formatMoney(s.tax_total, business.currency)}`);
     }
     lines.push(`*Total: ${formatMoney(s.total, business.currency)}*`);
     lines.push("");

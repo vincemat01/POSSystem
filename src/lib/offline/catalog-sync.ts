@@ -11,7 +11,7 @@ export async function syncCatalog(businessId: string, locationId: string) {
   const [{ data: products }, { data: stockRows }, { data: customers }, { data: balances }, { data: categories }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, business_id, name, barcode, sku, image_url, unit, cost_price, selling_price, category_id, tracks_expiry, active")
+      .select("id, business_id, name, barcode, sku, image_url, unit, cost_price, selling_price, category_id, tracks_expiry, tax_exempt, active")
       .eq("business_id", businessId)
       .eq("active", true),
     supabase.from("product_stock").select("product_id, quantity_on_hand").eq("business_id", businessId).eq("location_id", locationId),

@@ -16,6 +16,8 @@ const schema = z.object({
   loyalty_enabled: z.coerce.boolean().default(false),
   loyalty_earn_rate: z.coerce.number().min(0).default(1),
   loyalty_point_value: z.coerce.number().min(0).default(0.01),
+  tax_rate: z.coerce.number().min(0).max(100).default(0),
+  tax_inclusive: z.coerce.boolean().default(true),
 });
 
 export interface SettingsFormState {
@@ -34,6 +36,8 @@ export async function updateBusinessSettings(_prevState: SettingsFormState, form
     loyalty_enabled: formData.get("loyalty_enabled") === "on",
     loyalty_earn_rate: formData.get("loyalty_earn_rate") || 1,
     loyalty_point_value: formData.get("loyalty_point_value") || 0.01,
+    tax_rate: formData.get("tax_rate") || 0,
+    tax_inclusive: formData.get("tax_inclusive") === "on",
   });
 
   if (!parsed.success) {
@@ -59,6 +63,8 @@ export async function updateBusinessSettings(_prevState: SettingsFormState, form
       loyalty_enabled: parsed.data.loyalty_enabled,
       loyalty_earn_rate: parsed.data.loyalty_earn_rate,
       loyalty_point_value: parsed.data.loyalty_point_value,
+      tax_rate: parsed.data.tax_rate,
+      tax_inclusive: parsed.data.tax_inclusive,
     })
     .eq("id", context.business.id);
 

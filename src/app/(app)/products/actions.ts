@@ -15,6 +15,7 @@ const schema = z.object({
   selling_price: z.coerce.number().min(0, "Selling price can't be negative."),
   minimum_stock: z.coerce.number().min(0).default(0),
   tracks_expiry: z.coerce.boolean().default(false),
+  tax_exempt: z.coerce.boolean().default(false),
   category_id: z.string().uuid().optional(),
 });
 
@@ -33,6 +34,7 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
     selling_price: formData.get("selling_price") || 0,
     minimum_stock: formData.get("minimum_stock") || 0,
     tracks_expiry: formData.get("tracks_expiry") === "on",
+    tax_exempt: formData.get("tax_exempt") === "on",
     category_id: categoryId || undefined,
   });
 
@@ -68,6 +70,7 @@ export async function createProduct(_prevState: ProductFormState, formData: Form
     selling_price: parsed.data.selling_price,
     minimum_stock: parsed.data.minimum_stock,
     tracks_expiry: parsed.data.tracks_expiry,
+    tax_exempt: parsed.data.tax_exempt,
     category_id: parsed.data.category_id || null,
     image_url: imageUrl,
   });
@@ -119,6 +122,7 @@ const updateSchema = z.object({
   cost_price: z.coerce.number().min(0, "Cost price can't be negative."),
   selling_price: z.coerce.number().min(0, "Selling price can't be negative."),
   minimum_stock: z.coerce.number().min(0).default(0),
+  tax_exempt: z.coerce.boolean().default(false),
   category_id: z.string().uuid().optional(),
 });
 
@@ -133,6 +137,7 @@ export async function updateProduct(_prevState: ProductFormState, formData: Form
     cost_price: formData.get("cost_price") || 0,
     selling_price: formData.get("selling_price") || 0,
     minimum_stock: formData.get("minimum_stock") || 0,
+    tax_exempt: formData.get("tax_exempt") === "on",
     category_id: catId || undefined,
   });
 
@@ -154,6 +159,7 @@ export async function updateProduct(_prevState: ProductFormState, formData: Form
       cost_price: parsed.data.cost_price,
       selling_price: parsed.data.selling_price,
       minimum_stock: parsed.data.minimum_stock,
+      tax_exempt: parsed.data.tax_exempt,
       category_id: parsed.data.category_id || null,
     })
     .eq("id", parsed.data.product_id)

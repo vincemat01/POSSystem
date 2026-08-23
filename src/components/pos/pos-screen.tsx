@@ -16,6 +16,8 @@ export function PosScreen({
   preventExpiredSale,
   loyaltyEnabled,
   loyaltyPointValue,
+  taxRate,
+  taxInclusive,
 }: {
   businessId: string;
   locationId: string;
@@ -23,6 +25,8 @@ export function PosScreen({
   preventExpiredSale: boolean;
   loyaltyEnabled: boolean;
   loyaltyPointValue: number;
+  taxRate: number;
+  taxInclusive: boolean;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -75,13 +79,23 @@ export function PosScreen({
     });
   }, [cart, businessId, locationId]);
 
-  function addToCart(product: { id: string; name: string; selling_price: number }) {
+  function addToCart(product: { id: string; name: string; selling_price: number; tax_exempt: boolean }) {
     setCart((prev) => {
       const existing = prev.find((i) => i.product_id === product.id);
       if (existing) {
         return prev.map((i) => (i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i));
       }
-      return [...prev, { product_id: product.id, name: product.name, unit_price: product.selling_price, quantity: 1, discount: 0 }];
+      return [
+        ...prev,
+        {
+          product_id: product.id,
+          name: product.name,
+          unit_price: product.selling_price,
+          quantity: 1,
+          discount: 0,
+          tax_exempt: product.tax_exempt,
+        },
+      ];
     });
   }
 
@@ -308,6 +322,8 @@ export function PosScreen({
           allowExpired={!preventExpiredSale}
           loyaltyEnabled={loyaltyEnabled}
           loyaltyPointValue={loyaltyPointValue}
+          taxRate={taxRate}
+          taxInclusive={taxInclusive}
           onClose={() => setShowCheckout(false)}
           onComplete={handleComplete}
         />

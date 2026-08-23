@@ -18,6 +18,7 @@ interface Product {
   selling_price: number;
   minimum_stock: number;
   category_id: string | null;
+  tax_exempt: boolean;
 }
 
 export function EditProductForm({ product }: { product: Product }) {
@@ -103,6 +104,16 @@ export function EditProductForm({ product }: { product: Product }) {
             <Input id="edit_min" name="minimum_stock" type="number" min="0" defaultValue={product.minimum_stock} />
           </div>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-text">
+          <input
+            type="checkbox"
+            name="tax_exempt"
+            defaultChecked={product.tax_exempt}
+            className="h-4 w-4 rounded border-border"
+          />
+          This product is tax-exempt (zero-rated)
+        </label>
 
         {state.error && (
           <p className="rounded-[10px] bg-danger-light px-3 py-2 text-sm text-danger">{state.error}</p>

@@ -27,7 +27,21 @@ interface PaymentEntry {
 }
 
 function newEntry(method: PaymentMethod, amount: number): PaymentEntry {
-  return { key: crypto.randomUUID(), method, amount: String(amount), tendered: "" };
+  return { key: crypto.randomUUID(), method, amount: String(Math.round(amount * 100) / 100), tendered: "" };
+}
+
+/** Mirrors the tax calculation in record_sale (0022_tax_support.sql) so the checkout UI shows the
+ * same figure the server will store — tax is derived per line from unit_price/discount only, never
+ * from the loyalty redemption discount. */
+function computeTaxTotal(items: CartItem[], taxRate: number, taxInclusive: boolean) {
+  if (taxRate <= 0) return 0;
+  let taxTotal = 0;
+  for (const item of items) {
+    if (item.tax_exempt) continue;
+    const lineTotal = item.unit_price * item.quantity - item.discount;
+    taxTotal += taxInclusive ? lineTotal - lineTotal / (1 + taxRate / 100) : lineTotal * (taxRate / 100);
+  }
+  return Math.round(taxTotal * 100) / 100;
 }
 
 export function CheckoutSheet({
@@ -39,6 +53,8 @@ export function CheckoutSheet({
   allowExpired,
   loyaltyEnabled,
   loyaltyPointValue,
+  taxRate,
+  taxInclusive,
   onClose,
   onComplete,
 }: {
@@ -50,10 +66,14 @@ export function CheckoutSheet({
   allowExpired: boolean;
   loyaltyEnabled: boolean;
   loyaltyPointValue: number;
+  taxRate: number;
+  taxInclusive: boolean;
   onClose: () => void;
   onComplete: (receiptId?: string) => void;
 }) {
-  const [payments, setPayments] = useState<PaymentEntry[]>([newEntry("cash", total)]);
+  const taxTotal = computeTaxTotal(items, taxRate, taxInclusive);
+  const taxAddOn = taxInclusive ? 0 : taxTotal;
+  const [payments, setPayments] = useState<PaymentEntry[]>([newEntry("cash", total + taxAddOn)]);
   const [customerId, setCustomerId] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>(() => {
     const d = new Date();
@@ -79,9 +99,10 @@ export function CheckoutSheet({
   const effectiveMaxPoints = Math.min(customerLoyaltyPoints, maxRedeemablePoints);
 
   const effectiveTotal = Math.max(total - loyaltyDiscount, 0);
+  const payableTotal = Math.round((effectiveTotal + taxAddOn) * 100) / 100;
 
   const allocated = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-  const remaining = Math.round((effectiveTotal - allocated) * 100) / 100;
+  const remaining = Math.round((payableTotal - allocated) * 100) / 100;
   const hasCredit = payments.some((p) => p.method === "credit");
 
   const creditTotal = payments
@@ -131,14 +152,14 @@ export function CheckoutSheet({
     setRedeemPoints(checked);
     if (checked && effectiveMaxPoints > 0) {
       setPointsToRedeem(String(effectiveMaxPoints));
-      const newEffectiveTotal = Math.max(total - effectiveMaxPoints * loyaltyPointValue, 0);
+      const newPayableTotal = Math.max(total - effectiveMaxPoints * loyaltyPointValue, 0) + taxAddOn;
       if (payments.length === 1) {
-        setPayments([newEntry(payments[0].method, newEffectiveTotal)]);
+        setPayments([newEntry(payments[0].method, newPayableTotal)]);
       }
     } else {
       setPointsToRedeem("");
       if (payments.length === 1) {
-        setPayments([newEntry(payments[0].method, total)]);
+        setPayments([newEntry(payments[0].method, total + taxAddOn)]);
       }
     }
   }
@@ -146,9 +167,9 @@ export function CheckoutSheet({
   function handlePointsChange(value: string) {
     setPointsToRedeem(value);
     const pts = Math.min(Math.max(Math.floor(parseFloat(value) || 0), 0), effectiveMaxPoints);
-    const newEffectiveTotal = Math.max(total - pts * loyaltyPointValue, 0);
+    const newPayableTotal = Math.max(total - pts * loyaltyPointValue, 0) + taxAddOn;
     if (payments.length === 1) {
-      setPayments([newEntry(payments[0].method, newEffectiveTotal)]);
+      setPayments([newEntry(payments[0].method, newPayableTotal)]);
     }
   }
 
@@ -216,7 +237,14 @@ export function CheckoutSheet({
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-[16px] bg-surface p-5 md:rounded-[16px]">
         <h2 className="text-lg font-semibold">Checkout</h2>
-        <p className="mt-1 text-2xl font-bold text-primary">{formatMoney(total, currency)}</p>
+        <p className="mt-1 text-2xl font-bold text-primary">{formatMoney(total + taxAddOn, currency)}</p>
+        {taxRate > 0 && (
+          <p className="text-xs text-text-secondary">
+            {taxInclusive
+              ? `Includes ${formatMoney(taxTotal, currency)} tax (${taxRate}%)`
+              : `Subtotal ${formatMoney(total, currency)} + ${formatMoney(taxTotal, currency)} tax (${taxRate}%)`}
+          </p>
+        )}
 
         {loyaltyEnabled && (
           <div className="mt-3">
@@ -276,7 +304,7 @@ export function CheckoutSheet({
                 </div>
                 {loyaltyDiscount > 0 && (
                   <p className="text-xs font-medium text-primary-dark">
-                    Discount: -{formatMoney(loyaltyDiscount, currency)} | Pay: {formatMoney(effectiveTotal, currency)}
+                    Discount: -{formatMoney(loyaltyDiscount, currency)} | Pay: {formatMoney(payableTotal, currency)}
                   </p>
                 )}
               </div>

@@ -21,10 +21,13 @@ export function SettingsForm({
     loyalty_enabled: boolean;
     loyalty_earn_rate: number;
     loyalty_point_value: number;
+    tax_rate: number;
+    tax_inclusive: boolean;
   };
 }) {
   const [state, formAction, pending] = useActionState(updateBusinessSettings, initialState);
   const [loyaltyOn, setLoyaltyOn] = useState(business.loyalty_enabled);
+  const [taxRate, setTaxRate] = useState(String(business.tax_rate));
 
   return (
     <Card className="p-5">
@@ -65,6 +68,37 @@ export function SettingsForm({
           />
           Prevent sale of expired stock
         </label>
+
+        <div className="border-t border-border pt-4">
+          <p className="mb-3 text-sm font-semibold">Tax / VAT</p>
+
+          <div>
+            <Label htmlFor="tax_rate">Tax rate (%)</Label>
+            <Input
+              id="tax_rate"
+              name="tax_rate"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={taxRate}
+              onChange={(e) => setTaxRate(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-text-secondary">Set to 0 to disable tax calculation entirely.</p>
+          </div>
+
+          {Number(taxRate) > 0 && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-text">
+              <input
+                type="checkbox"
+                name="tax_inclusive"
+                defaultChecked={business.tax_inclusive}
+                className="h-4 w-4 rounded border-border"
+              />
+              Prices already include tax
+            </label>
+          )}
+        </div>
 
         <div className="border-t border-border pt-4">
           <p className="mb-3 text-sm font-semibold">Loyalty Programme</p>
