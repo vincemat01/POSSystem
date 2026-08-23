@@ -3,11 +3,11 @@
 -- or tax-exclusive. Individual products can be marked tax-exempt (zero-rated).
 
 alter table businesses
-  add column tax_rate numeric(5, 2) not null default 0,
-  add column tax_inclusive boolean not null default true;
+  add column if not exists tax_rate numeric(5, 2) not null default 0,
+  add column if not exists tax_inclusive boolean not null default true;
 
 alter table products
-  add column tax_exempt boolean not null default false;
+  add column if not exists tax_exempt boolean not null default false;
 
 -- Update record_sale to calculate and store tax_total
 -- Drop the prior 9-parameter signature defensively — if this migration runs on a database where
